@@ -39,10 +39,6 @@ def _install_theme_mode_runtime() -> None:
 
     from . import theme as _theme
     from .planning_nav_runtime import install_planning_navigation_runtime
-    from .sidebar_runtime import (
-        auto_collapse_sidebar_robust,
-        render_ecosystem_product_card,
-    )
     from .theme_accessibility import inject_accessibility_css
     from .theme_modes import apply_display_mode, render_appearance_selector
     from .ui import apply_device_ui, install_device_runtime, is_mobile
@@ -57,9 +53,8 @@ def _install_theme_mode_runtime() -> None:
     original_brand_block = _theme.brand_block
     original_mobile_navigation = getattr(_theme, "install_mobile_navigation", None)
 
-    # O tema-base ainda conhece a implementação histórica do menu mobile, mas
-    # ela só pode ser executada em um dispositivo móvel. No desktop, nem o
-    # iframe/script dessa navegação é criado.
+    # O menu mobile histórico só é instalado no mobile. No desktop o script nem
+    # é criado, evitando que as duas plataformas compartilhem DOM de navegação.
     if callable(original_mobile_navigation):
         def install_mobile_navigation_for_device() -> None:
             if is_mobile():
@@ -71,12 +66,10 @@ def _install_theme_mode_runtime() -> None:
         original_apply_theme()
         apply_display_mode()
         inject_accessibility_css()
-        # A partir daqui somente um runtime é carregado: mobile OU desktop.
+        # Somente um runtime é carregado: mobile OU desktop.
         apply_device_ui()
 
     def brand_block_with_appearance() -> None:
-        # A identidade permanece no topo. Controles auxiliares ficam recolhidos
-        # em uma única área para não disputar espaço com a navegação principal.
         original_brand_block()
 
         with st.expander("⚙️ SISTEMA E APARÊNCIA", expanded=False):
@@ -113,14 +106,20 @@ def _install_theme_mode_runtime() -> None:
             except Exception:
                 pass
 
-            render_ecosystem_product_card(st)
+            # O cartão institucional faz parte do shell desktop. No mobile a
+            # sidebar fica substituída pelo menu compacto e não carrega esse módulo.
+            if not is_mobile():
+                from .sidebar_runtime import render_ecosystem_product_card
+
+                render_ecosystem_product_card(st)
+
+    def explicit_sidebar_control_only() -> None:
+        """Compatibilidade com app.py; nunca recolhe menu automaticamente."""
+        return None
 
     _theme.apply_renova_theme = apply_theme_with_mode
     _theme.brand_block = brand_block_with_appearance
-
-    # app.py mantém esta API por compatibilidade. O recolhimento desktop é
-    # controlado explicitamente pelo shell do desktop e nunca pelo mobile.
-    _theme.auto_collapse_sidebar = auto_collapse_sidebar_robust
+    _theme.auto_collapse_sidebar = explicit_sidebar_control_only
     _theme._renova_theme_modes_installed = True
 
 
