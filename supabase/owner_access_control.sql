@@ -1,5 +1,6 @@
 -- RENOVA Finanças — controle de acesso V2
--- Dono fixado por e-mail no primeiro cadastro correspondente.
+-- O e-mail do dono é configurado diretamente no projeto Supabase e NÃO deve
+-- ser hardcoded neste arquivo, pois o repositório pode ser público.
 -- Autorizações são armazenadas no banco, não em user_metadata.
 
 create schema if not exists private;
@@ -10,10 +11,6 @@ create table if not exists private.owner_config (
 );
 
 revoke all on table private.owner_config from public, anon, authenticated;
-
-insert into private.owner_config (email)
-values (lower('consultorcledemilsonoliveira@gmail.com'))
-on conflict (email) do nothing;
 
 create table if not exists public.user_access (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -157,7 +154,7 @@ on conflict (user_id) do update
   set email = excluded.email,
       updated_at = now();
 
--- Garante que o e-mail do dono sempre receba o papel de dono caso já exista.
+-- Garante que o e-mail configurado como dono sempre receba o papel de dono caso já exista.
 update public.user_access ua
 set role = 'dono',
     status = 'ativo',
