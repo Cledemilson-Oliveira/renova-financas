@@ -29,8 +29,13 @@ def _safe_float(value: Any) -> float:
 def _as_date(value: Any) -> date | None:
     if isinstance(value, date):
         return value
+    if value is None or value is pd.NaT:
+        return None
     try:
-        return pd.to_datetime(value).date()
+        parsed = pd.to_datetime(value)
+        if pd.isna(parsed):
+            return None
+        return parsed.date()
     except Exception:
         return None
 
@@ -87,12 +92,7 @@ def analyze_financial_urgencies(
     cards: pd.DataFrame | None,
     reference_date: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Analisa sinais financeiros operacionais e devolve alertas priorizados.
-
-    A função é deliberadamente determinística: ela não depende de um modelo de IA
-    para classificar urgências. Isso permite mostrar os mesmos alertas no dashboard
-    e explicar cada regra de forma auditável.
-    """
+    """Analisa sinais financeiros operacionais e devolve alertas priorizados."""
     today = reference_date or date.today()
     tx = transactions.copy() if transactions is not None else pd.DataFrame()
     acc = accounts.copy() if accounts is not None else pd.DataFrame()
@@ -138,17 +138,28 @@ def analyze_financial_urgencies(
 
     # 2. Contas vencidas e vencimentos nos próximos 7 dias.
     upcoming_total = 0.0
-    if not tx.empty and {"tipo", "data", "status", "valor"}.issubset(tx.columns):
+    required = {"tipo", "data", "status", "valor"}
+    if not tx.empty and required.issubset(tx.columns):
         tx["_data"] = tx["data"].map(_as_date)
+        if "vencimento" in tx.columns:
+            tx["_vencimento"] = tx["vencimento"].map(_as_date)
+        else:
+            tx["_vencimento"] = None
         tx["_status"] = tx["status"].astype(str).str.lower().str.strip()
         tx["_valor"] = pd.to_numeric(tx["valor"], errors="coerce").fillna(0.0)
         expenses = tx[tx["tipo"].astype(str).str.lower().eq("despesa")].copy()
         open_expenses = expenses[~expenses["_status"].isin(["pago", "cancelado", "cancelada"])].copy()
 
         for _, row in open_expenses.iterrows():
-            due = row.get("_data")
+            due = row.get("_vencimento")
+            # Só usamos a data do lançamento como fallback quando o registro já
+            # foi explicitamente marcado como atrasado. Para uma despesa apenas
+            # prevista sem vencimento, não inventamos uma data de cobrança.
+            if not isinstance(due, date) and row.get("_status") == "atrasado":
+                due = row.get("_data")
             if not isinstance(due, date):
                 continue
+
             amount = float(row["_valor"])
             description = str(row.get("descricao") or "Despesa")
             days = (due - today).days
@@ -195,7 +206,7 @@ def analyze_financial_urgencies(
 
             current_total = float(
                 paid_or_open.loc[
-                    paid_or_open["_data"].map(lambda d: isinstance(d, date) and d >= current_start and d <= today),
+                    paid_or_open["_data"].map(lambda d: isinstance(d, date) and current_start <= d <= today),
                     "_valor",
                 ].sum()
             )
@@ -327,7 +338,6 @@ def analyze_financial_urgencies(
                         )
                     )
 
-    # Ordenação estável: gravidade, vencimento e valor.
     alerts.sort(
         key=lambda item: (
             -int(item.get("score") or 0),
