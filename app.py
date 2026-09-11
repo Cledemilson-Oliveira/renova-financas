@@ -560,7 +560,7 @@ def render_ai() -> None:
                 "role": "assistant",
                 "content": (
                     "Olá! Eu sou a **RENOVA IA Financeira**. Posso analisar seus números e também "
-                    "registrar receitas, despesas, metas, orçamentos e lançamentos recorrentes pelo chat."
+                    "administrar pelo chat receitas, despesas, contas, cartões, transferências, categorias, recorrências, metas, orçamentos, baixas e análises."
                 ),
             }
         ]
