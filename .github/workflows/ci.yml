@@ -19,18 +19,29 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q app.py src pages
       - name: Import modules
-        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.theme_modes, src.ai_free_training, src.ai_training_runtime, src.training_ingest, src.urgencies"
-      - name: Validate theme modes
+        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.theme_modes, src.theme_accessibility, src.ai_free_training, src.ai_training_runtime, src.training_ingest, src.urgencies"
+      - name: Validate theme modes and contrast
         run: |
           python - <<'PY'
           import src.theme as theme
           import src.theme_modes as modes
+          import src.theme_accessibility as accessibility
 
           assert getattr(theme, '_renova_theme_modes_installed', False), 'Runtime de aparência não conectado ao tema'
           assert set(modes.THEME_OPTIONS.values()) == {'system', 'light', 'dark'}
           assert modes.THEME_LABELS['system'] == 'Automático'
-          assert 'prefers-color-scheme: light' in modes._inject_css.__code__.co_consts or callable(modes._inject_css)
           modes._light_plotly_template()
+
+          dark = accessibility._DARK_CONTRAST_CSS
+          light = accessibility._LIGHT_CONTRAST_CSS
+          assert 'input:-webkit-autofill' in dark
+          assert 'input:-webkit-autofill' in light
+          assert '-webkit-text-fill-color:#F7FBFF' in dark
+          assert '-webkit-text-fill-color:#17364A' in light
+          assert 'content:"Menu"' in dark
+          assert 'content:"Fechar"' in dark
+          assert 'aria-label="E-mail"' in dark and 'aria-label="Senha"' in dark
+          assert 'min-height:46px' in dark, 'Controle mobile do menu precisa de área de toque destacada'
           PY
       - name: Validate AI training runtimes
         run: |
