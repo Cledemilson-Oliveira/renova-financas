@@ -51,7 +51,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.11.5"
+APP_BUILD = "2026.09.11.6"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -100,7 +100,7 @@ def render_auth() -> None:
           <h1>Organize seu dinheiro hoje.<br><strong>Decida melhor amanhã.</strong></h1>
           <p class="sales-lead">
             Tenha contas, receitas, despesas, cartões, metas e orçamentos em um só lugar.
-            Comece gratuitamente e, quando quiser acelerar sua gestão, ative a RENOVA IA.
+            A IA Padrão já vem incluída gratuitamente; personalize a memória e o treinamento quando quiser.
           </p>
           <div class="sales-cta-row">
             <a href="#criar-conta" class="sales-cta primary">Criar minha conta grátis</a>
@@ -129,7 +129,7 @@ def render_auth() -> None:
               “marque a energia como paga” ou “analise minhas finanças”.
               A RENOVA IA entende o pedido e executa as ações disponíveis para sua conta.
             </p>
-            <div class="ai-chip">🧠 Aprende suas preferências de uso</div>
+            <div class="ai-chip">🤖 IA Padrão gratuita • 🧠 Treinamento personalizado no Premium</div>
           </div>
           <div class="ai-demo">
             <div class="bubble user">Gastei R$ 85 no mercado hoje.</div>
@@ -141,7 +141,7 @@ def render_auth() -> None:
 
         <section class="pricing-section">
           <div class="sales-eyebrow">ESCOLHA COMO COMEÇAR</div>
-          <h2>Comece grátis. <strong>Ative a IA quando quiser.</strong></h2>
+          <h2>Comece grátis com IA. <strong>Personalize quando quiser.</strong></h2>
           <div class="pricing-grid">
             <article class="price-card">
               <div class="plan">GRÁTIS</div>
@@ -150,6 +150,7 @@ def render_auth() -> None:
               <ul>
                 <li>✓ Dashboard financeiro</li><li>✓ Receitas e despesas</li>
                 <li>✓ Contas e cartões</li><li>✓ Orçamentos e análises</li>
+                <li>✓ IA Padrão para lançamentos e consultas</li>
               </ul>
               <a href="#criar-conta" class="sales-cta secondary full">Criar conta gratuita</a>
             </article>
@@ -157,16 +158,16 @@ def render_auth() -> None:
               <div class="popular">MAIS INTELIGENTE</div>
               <div class="plan">RENOVA IA</div>
               <div class="price">R$ 9,90 <small>/mês</small></div>
-              <p>Para administrar suas finanças conversando com a IA.</p>
+              <p>Para transformar a IA padrão em um assistente treinado para o seu jeito de trabalhar.</p>
               <ul>
-                <li>✓ Tudo do plano gratuito</li><li>✓ Assistente Financeiro IA</li>
-                <li>✓ Modo Execução</li><li>✓ Memória de preferências</li>
-                <li>✓ Análises e comandos pelo chat</li>
+                <li>✓ Tudo do plano gratuito</li><li>✓ Treinamento personalizado</li>
+                <li>✓ Memória de preferências e regras</li><li>✓ PDFs e YouTube como conhecimento privado</li>
+                <li>✓ Vocabulário, conta padrão e contexto próprio</li>
               </ul>
-              <div class="sales-cta primary full static">Crie sua conta e ative por R$ 9,90/mês</div>
+              <div class="sales-cta primary full static">Personalize sua IA por R$ 9,90/mês</div>
             </article>
           </div>
-          <p class="pricing-note">A assinatura da IA é opcional. O usuário pode continuar utilizando os recursos gratuitos sem ativá-la.</p>
+          <p class="pricing-note">A IA Padrão faz parte da conta gratuita. A assinatura é opcional e libera treinamento e memória personalizados.</p>
         </section>
 
         <div id="acessar" class="auth-anchor"></div>
@@ -409,7 +410,7 @@ def render_urgency_center() -> None:
             st.rerun()
     with action_cols[1]:
         if st.button("🤖 Analisar com RENOVA IA", key="urgencies_open_ai", use_container_width=True):
-            st.session_state.nav_page = "RENOVA IA" if has_renova_ai_access() else "Assinar RENOVA IA"
+            st.session_state.nav_page = "RENOVA IA"
             st.rerun()
 
 
@@ -1106,13 +1107,16 @@ def session_user_id() -> str:
 
 
 def has_renova_ai_access() -> bool:
+    # Todo usuário autenticado recebe a IA Padrão gratuita.
+    return bool(session_user_id())
+
+
+def has_personalized_ai_training_access() -> bool:
     uid = session_user_id()
     if not uid:
         return False
     try:
-        if is_owner(uid):
-            return True
-        return has_active_ai_subscription(uid)
+        return bool(is_owner(uid) or has_active_ai_subscription(uid))
     except Exception:
         return False
 
@@ -1175,6 +1179,7 @@ def _execute_ai_prompt(prompt: str) -> None:
                 "budgets": st.session_state.budgets,
                 "categories": st.session_state.categories,
                 "goals": st.session_state.goals,
+                "_allow_personalized_training": has_personalized_ai_training_access(),
             }
 
             pending_context = st.session_state.get("ai_pending_context")
@@ -1236,26 +1241,25 @@ def render_ai_subscription_sales() -> None:
     checkout_url = str(plan.get("checkout_url") or "") if plan else ""
 
     hero(
-        "Ative o <strong>RENOVA IA</strong>",
-        "Transforme o RENOVA Finanças em um assistente que entende seus pedidos e executa sua gestão pelo chat.",
+        "Personalize sua <strong>RENOVA IA</strong>",
+        "A IA Padrão já é gratuita. A assinatura libera memória, regras e treinamento exclusivos para sua conta.",
     )
 
     st.markdown(
         f"""
         <section class="ai-subscribe-gate">
-          <div class="sales-eyebrow">PLANO RENOVA IA</div>
-          <h2>Seu assistente financeiro por <strong>R$ {price:,.2f}/mês</strong></h2>
+          <div class="sales-eyebrow">RENOVA IA PERSONALIZADA</div>
+          <h2>Treinamento exclusivo por <strong>R$ {price:,.2f}/mês</strong></h2>
           <p>
-            O plano gratuito continua disponível para sua gestão manual.
-            A assinatura RENOVA IA libera o chat, Modo Execução, memória de preferências
-            e análises por conversa.
+            Continue usando a IA Padrão gratuitamente para lançar receitas, despesas, consultar e analisar.
+            No Premium, você ensina o seu jeito de trabalhar e a IA passa a usar memória privada da sua conta.
           </p>
           <div class="gate-benefits">
-            <span>✓ Chat financeiro IA</span>
-            <span>✓ Lançamentos por conversa</span>
-            <span>✓ Metas e orçamentos por comando</span>
-            <span>✓ Memória das suas preferências</span>
-            <span>✓ Modo Execução</span>
+            <span>✓ Tudo da IA Padrão gratuita</span>
+            <span>✓ Regras e preferências permanentes</span>
+            <span>✓ Vocabulário e conta padrão</span>
+            <span>✓ Estudo de PDFs e YouTube</span>
+            <span>✓ Memória personalizada privada</span>
           </div>
         </section>
         """.replace("9,90", f"{price:.2f}".replace(".", ",")),
@@ -1264,11 +1268,11 @@ def render_ai_subscription_sales() -> None:
 
     if checkout_url:
         st.link_button(
-            "Assinar RENOVA IA por R$ 9,90/mês com Mercado Pago",
+            "Ativar IA Personalizada por R$ 9,90/mês com Mercado Pago",
             checkout_url,
             use_container_width=True,
         )
-        st.caption("Após a confirmação do Mercado Pago, o acesso à IA será liberado automaticamente.")
+        st.caption("Após a confirmação do Mercado Pago, o treinamento personalizado será liberado automaticamente.")
     else:
         st.info(
             "A integração de checkout do Mercado Pago está sendo conectada. "
@@ -1278,34 +1282,36 @@ def render_ai_subscription_sales() -> None:
 
 @st.dialog("🤖 Assistente Financeiro IA", width="large")
 def open_ai_dialog() -> None:
-    if not has_renova_ai_access():
-        st.warning("O chat com a RENOVA IA é exclusivo do plano RENOVA IA.")
-        plan = get_ai_plan() if REAL_MODE else None
-        price = float(plan.get("price", 9.90)) if plan else 9.90
-        st.markdown(
-            f"Ative o plano por **R$ {price:.2f}/mês** para usar o Assistente Financeiro IA."
-        )
-        if st.button("Ver plano RENOVA IA", use_container_width=True):
+    personalized = has_personalized_ai_training_access()
+    if personalized:
+        st.caption("IA Personalizada ativa: execução financeira + memória e treinamentos da sua conta.")
+        st.page_link("pages/Treinamento_IA.py", label="🧠 Treinar minha IA", use_container_width=True)
+    else:
+        st.caption("IA Padrão gratuita ativa: lançamentos, consultas, análises e gestão essencial pelo chat.")
+        if st.button("🧠 Desbloquear treinamento personalizado", key="modal_upgrade_training", use_container_width=True):
             st.session_state.nav_page = "Assinar RENOVA IA"
             st.rerun()
-        return
-
-    st.caption("Converse sem sair desta tela. A IA pode executar as ações permitidas para sua conta.")
-    st.page_link("pages/Treinamento_IA.py", label="Treinar minha IA", icon="🧠", use_container_width=True)
     render_ai_chat("ai_modal_input", fragment_rerun=True)
 
 
 def render_ai() -> None:
-    if not has_renova_ai_access():
-        render_ai_subscription_sales()
-        return
-
+    personalized = has_personalized_ai_training_access()
     hero(
         "RENOVA IA <strong>Financeira</strong>",
-        "Converse com sua gestão financeira. A IA analisa e executa ações quando você pedir.",
+        "Converse com sua gestão financeira. A IA Padrão gratuita já executa lançamentos, consultas e análises.",
     )
-    st.caption("🧠 A IA aprende preferências, regras e materiais de treinamento vinculados à sua conta.")
-    st.page_link("pages/Treinamento_IA.py", label="Treinar minha IA", icon="🧠", use_container_width=True)
+    if personalized:
+        st.success("🧠 IA Personalizada ativa — seus treinamentos, regras e memória privada podem ser usados pelo chat.")
+        st.page_link("pages/Treinamento_IA.py", label="Treinar minha IA", icon="🧠", use_container_width=True)
+    else:
+        st.info(
+            "🤖 **IA Padrão gratuita ativa.** Ela já sabe criar receitas e despesas, entender vencimentos, "
+            "consultar seus números, analisar urgências e executar a gestão essencial. "
+            "O treinamento com regras próprias e materiais é exclusivo da assinatura."
+        )
+        if st.button("🧠 Quero personalizar minha IA", key="page_upgrade_training", use_container_width=True):
+            st.session_state.nav_page = "Assinar RENOVA IA"
+            st.rerun()
     render_ai_chat("ai_page_input")
 
 
@@ -1330,7 +1336,7 @@ def render_sidebar_profile() -> None:
             pass
 
     role_label = "Dono • Acesso Global" if owner else "Usuário RENOVA"
-    plan_label = "RENOVA IA ativa" if ai_active else "Plano Gratuito"
+    plan_label = "IA Personalizada • Premium" if ai_active else "IA Padrão • Gratuito"
     avatar_html = (
         f'<img class="sidebar-profile-avatar-img" src="{escape(avatar_url)}" alt="Foto de perfil" />'
         if avatar_url.startswith(("https://", "http://"))
@@ -1442,8 +1448,4 @@ pages = {
 pages[page]()
 
 if AI_FAB_CLICKED:
-    if has_renova_ai_access():
-        open_ai_dialog()
-    else:
-        st.session_state.nav_page = "Assinar RENOVA IA"
-        st.rerun()
+    open_ai_dialog()

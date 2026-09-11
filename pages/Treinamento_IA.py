@@ -52,7 +52,7 @@ def _hero() -> None:
     st.markdown(
         """
         <section class="renova-hero">
-          <h1>🧠 Treinamento da <strong>RENOVA IA</strong></h1>
+          <h1>🧠 Treinamento <strong>Personalizado da RENOVA IA</strong></h1>
           <p>
             Ensine como você vive, trabalha e administra seu dinheiro. Adicione regras,
             conhecimentos, PDFs e conteúdos de vídeo para formar uma memória operacional privada.
@@ -397,9 +397,9 @@ if not is_authenticated():
 
 uid = _user_id()
 if not _has_access(uid):
-    st.warning("🧠 O Treinamento da IA é exclusivo para assinantes RENOVA IA.")
+    st.warning("🧠 O Treinamento Personalizado é exclusivo para assinantes RENOVA IA.")
     st.write(
-        "No plano RENOVA IA, cada usuário possui uma memória de treinamento própria, isolada e protegida pelo Supabase."
+        "Sua conta gratuita já possui a IA Padrão para gestão financeira. No Premium, você libera uma memória de treinamento própria, isolada e protegida pelo Supabase."
     )
     st.page_link("app.py", label="Voltar e assinar RENOVA IA")
     st.stop()
