@@ -31,7 +31,7 @@ from src.supabase_client import (
     sign_out,
     sign_up,
 )
-from src.theme import apply_renova_theme, brand_block, floating_ai_button
+from src.theme import apply_renova_theme, auto_collapse_sidebar, brand_block, floating_ai_button
 from src.ai_finance import confirm_pending_action, process_message
 
 
@@ -651,12 +651,18 @@ if st.query_params.get("assistant") == "1":
 with st.sidebar:
     brand_block()
     st.caption("GESTÃO FINANCEIRA")
+    previous_page = st.session_state.get("_last_nav_page", st.session_state.nav_page)
     page = st.radio(
         "Navegação",
         NAV_PAGES,
         key="nav_page",
         label_visibility="collapsed",
     )
+    if page != previous_page:
+        st.session_state._last_nav_page = page
+        auto_collapse_sidebar()
+    else:
+        st.session_state._last_nav_page = page
     st.divider()
     if REAL_MODE:
         st.success("Supabase conectado")
