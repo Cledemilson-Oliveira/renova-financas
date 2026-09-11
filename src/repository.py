@@ -373,3 +373,93 @@ def upsert_budget(
         },
         on_conflict="user_id,category_id,month",
     ).execute()
+
+
+def create_financial_goal(
+    user_id: str,
+    name: str,
+    target_amount: float,
+    target_date: date | None = None,
+) -> None:
+    payload = {
+        "user_id": user_id,
+        "name": name.strip() or "Meta financeira",
+        "target_amount": float(target_amount),
+        "current_amount": 0,
+        "status": "ativa",
+    }
+    if target_date is not None:
+        payload["target_date"] = target_date.isoformat()
+    _client().table("financial_goals").insert(payload).execute()
+
+
+def create_recurring_transaction(
+    user_id: str,
+    account_id: str,
+    category_id: str | None,
+    kind: str,
+    description: str,
+    amount: float,
+    frequency: str,
+    next_due_date: date,
+) -> None:
+    _client().table("recurring_transactions").insert(
+        {
+            "user_id": user_id,
+            "account_id": account_id,
+            "category_id": category_id,
+            "kind": kind,
+            "description": description.strip(),
+            "amount": float(amount),
+            "frequency": frequency,
+            "next_due_date": next_due_date.isoformat(),
+            "is_active": True,
+        }
+    ).execute()
+
+
+def update_transaction_status(user_id: str, transaction_id: str, status: str) -> None:
+    allowed = {"previsto", "pago", "atrasado", "cancelado"}
+    if status not in allowed:
+        raise ValueError("Status de lançamento inválido.")
+    (
+        _client()
+        .table("transactions")
+        .update({"status": status})
+        .eq("id", transaction_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+
+def log_ai_action(
+    user_id: str,
+    command_text: str,
+    action_type: str,
+    action_payload: dict[str, Any] | None,
+    status: str,
+    result_message: str,
+) -> None:
+    _client().table("ai_action_logs").insert(
+        {
+            "user_id": user_id,
+            "command_text": command_text,
+            "action_type": action_type,
+            "action_payload": action_payload or {},
+            "status": status,
+            "result_message": result_message,
+        }
+    ).execute()
+
+
+def fetch_ai_action_logs(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    response = (
+        _client()
+        .table("ai_action_logs")
+        .select("id,command_text,action_type,status,result_message,created_at")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(max(1, min(int(limit), 100)))
+        .execute()
+    )
+    return response.data or []
