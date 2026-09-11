@@ -1,0 +1,53 @@
+name: TEMP Editar Recorrencias
+
+on:
+  push:
+    branches: [feat/editar-recorrencias]
+    paths:
+      - ".github/workflows/tmp_editar_recorrencias.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar-e-validar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/editar-recorrencias
+          fetch-depth: 0
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Aplicar alteração
+        run: python scripts/tmp_editar_recorrencias.py
+
+      - name: Validar sintaxe
+        run: python -m py_compile src/recurring_finance.py pages/Planejamento_Caixa.py
+
+      - name: Validar requisitos funcionais
+        run: |
+          grep -q 'def update_recurring_plan' src/recurring_finance.py
+          grep -q 'Editar conta / recorrência' pages/Planejamento_Caixa.py
+          grep -q 'Próximo vencimento / recebimento a gerar' pages/Planejamento_Caixa.py
+          grep -q 'Lançamentos que já foram gerados permanecem no histórico' pages/Planejamento_Caixa.py
+          grep -q 'O RENOVA recalculará somente as próximas parcelas' pages/Planejamento_Caixa.py
+
+      - name: Commit e push
+        run: |
+          if git diff --quiet; then
+            echo "Nenhuma alteração pendente."
+            exit 0
+          fi
+          git config user.name "RENOVA Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/recurring_finance.py pages/Planejamento_Caixa.py
+          git commit -m "feat(financas): liberar edição de contas fixas e parceladas"
+          git pull --rebase origin feat/editar-recorrencias
+          git push origin feat/editar-recorrencias
