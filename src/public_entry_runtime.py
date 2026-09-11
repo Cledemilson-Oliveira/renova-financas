@@ -33,7 +33,11 @@ def _upgrade_sales_copy(body: str) -> str:
 
 
 def install_public_entry_runtime() -> None:
-    """Conecta CTAs públicos a rotas reais e mantém a oferta comercial consistente."""
+    """Conecta CTAs públicos a rotas reais e mantém a oferta comercial consistente.
+
+    Os CTAs usam ``target=_self`` de forma explícita para impedir que o cadastro
+    seja aberto em uma nova aba pelo navegador/host do Streamlit.
+    """
     if getattr(st, "_renova_public_entry_runtime_installed", False):
         return
 
@@ -41,10 +45,13 @@ def install_public_entry_runtime() -> None:
 
     def markdown_with_public_routes(body, *args, **kwargs):
         if isinstance(body, str):
-            body = body.replace('href="#criar-conta"', f'href="{_FREE_CTA_TARGET}"')
+            body = body.replace(
+                'href="#criar-conta"',
+                f'href="{_FREE_CTA_TARGET}" target="_self"',
+            )
             body = body.replace(
                 '<div class="sales-cta primary full static">Personalize sua IA por R$ 9,90/mês</div>',
-                f'<a href="{_PREMIUM_CTA_TARGET}" class="sales-cta primary full">Quero RENOVA IA Personal por R$ 9,90/mês</a>',
+                f'<a href="{_PREMIUM_CTA_TARGET}" target="_self" class="sales-cta primary full">Quero RENOVA IA Personal por R$ 9,90/mês</a>',
             )
             body = _upgrade_sales_copy(body)
         return original_markdown(body, *args, **kwargs)
