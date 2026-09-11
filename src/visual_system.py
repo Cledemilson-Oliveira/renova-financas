@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from datetime import date, datetime
+from typing import Any
+
+import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
+import streamlit as st
 
 RENOVA_LOGO_URL = (
     "https://nnjvxomaermffqnmwtzr.supabase.co/storage/v1/object/public/"
@@ -22,8 +27,119 @@ COLORS = {
     "muted": "#AFC3D2",
 }
 
+_DATE_COLUMNS = {
+    "data",
+    "vencimento",
+    "due_date",
+    "target_date",
+    "purchase_date",
+    "occurred_on",
+    "next_due_date",
+    "data do lançamento",
+    "data de vencimento",
+    "próxima cobrança",
+    "proxima cobranca",
+}
+
+
+def _format_date_br(value: Any) -> Any:
+    """Formata valores de data apenas para apresentação, preservando os dados reais."""
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+
+    if isinstance(value, pd.Timestamp):
+        return value.strftime("%d/%m/%Y")
+    if isinstance(value, (datetime, date)):
+        return value.strftime("%d/%m/%Y")
+    return value
+
+
+def _format_dataframe_dates(data: Any) -> Any:
+    if not isinstance(data, pd.DataFrame):
+        return data
+
+    frame = data.copy()
+    for column in frame.columns:
+        normalized = str(column).strip().lower()
+        if normalized in _DATE_COLUMNS:
+            frame[column] = frame[column].map(_format_date_br)
+    return frame
+
+
+def _install_brazilian_date_ui() -> None:
+    """Padroniza datas visíveis do RENOVA Finanças como DD/MM/AAAA.
+
+    O patch atua somente na camada de apresentação. Datas continuam sendo
+    armazenadas no Supabase no formato ISO, que é o formato correto para o banco.
+    """
+    if getattr(st, "_renova_br_dates_installed", False):
+        return
+
+    original_date_input = st.date_input
+    original_dataframe = st.dataframe
+
+    def date_input_br(*args: Any, **kwargs: Any):
+        kwargs.setdefault("format", "DD/MM/YYYY")
+        return original_date_input(*args, **kwargs)
+
+    def dataframe_br(data: Any = None, *args: Any, **kwargs: Any):
+        return original_dataframe(_format_dataframe_dates(data), *args, **kwargs)
+
+    st.date_input = date_input_br  # type: ignore[assignment]
+    st.dataframe = dataframe_br  # type: ignore[assignment]
+    setattr(st, "_renova_br_dates_installed", True)
+
+
+def _install_layout_safety_css() -> None:
+    """Evita que ações rápidas cubram gerenciamento de lançamentos."""
+    st.markdown(
+        """
+        <style>
+        /* Ações de lançamento ficam no fluxo da página, nunca sobre os registros. */
+        body .st-key-launch_actions{
+          position:relative!important;
+          left:auto!important;
+          right:auto!important;
+          top:auto!important;
+          bottom:auto!important;
+          width:100%!important;
+          max-width:none!important;
+          margin:0 0 16px!important;
+          z-index:5!important;
+        }
+
+        /* Reserva espaço para o único botão realmente flutuante: RENOVA IA. */
+        body [data-testid="stMainBlockContainer"]{
+          padding-bottom:8.5rem!important;
+        }
+
+        @media(max-width:768px){
+          body .st-key-launch_actions{
+            left:auto!important;
+            right:auto!important;
+            bottom:auto!important;
+            width:100%!important;
+            margin:0 0 14px!important;
+          }
+          body [data-testid="stMainBlockContainer"]{
+            padding-bottom:10rem!important;
+          }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 def configure_plotly() -> None:
+    _install_brazilian_date_ui()
+    _install_layout_safety_css()
+
     template = go.layout.Template(
         layout=go.Layout(
             paper_bgcolor="rgba(0,0,0,0)",
