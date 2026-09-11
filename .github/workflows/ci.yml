@@ -19,6 +19,39 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q app.py src pages
       - name: Import modules
-        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.ai_training_runtime, src.training_ingest"
+        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.ai_training_runtime, src.training_ingest, src.urgencies"
       - name: Validate AI training runtime
         run: python -c "import src.ai_finance as m; assert getattr(m, '_renova_training_runtime_installed', False), 'Treinamento da IA não conectado ao processador'"
+      - name: Validate urgency engine
+        run: |
+          python - <<'PY'
+          from datetime import date, timedelta
+          import pandas as pd
+          from src.urgencies import analyze_financial_urgencies, urgency_summary
+
+          today = date.today()
+          alerts = analyze_financial_urgencies(
+              transactions=pd.DataFrame([
+                  {
+                      "id": "tx-1",
+                      "tipo": "Despesa",
+                      "data": today - timedelta(days=2),
+                      "status": "previsto",
+                      "valor": 180.0,
+                      "descricao": "Energia",
+                  }
+              ]),
+              accounts=pd.DataFrame([
+                  {"id": "acc-1", "conta": "Conta principal", "saldo": -50.0}
+              ]),
+              budgets=pd.DataFrame([
+                  {"id": "b-1", "categoria": "Alimentação", "orcamento": 500.0, "realizado": 550.0}
+              ]),
+              cards=pd.DataFrame(),
+              reference_date=today,
+          )
+          summary = urgency_summary(alerts)
+          assert summary["critica"] >= 2, alerts
+          assert summary["alta"] >= 1, alerts
+          assert any(item["key"].startswith("overdue:") for item in alerts), alerts
+          PY
