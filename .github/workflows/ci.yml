@@ -32,6 +32,24 @@ jobs:
           assert 'wa.me/5514999999999' in admin.whatsapp_url('(14) 99999-9999', 'Cliente Teste')
           assert admin.PLAN_CODE == 'renova_ia'
           PY
+      - name: Validate signup navigation and visual system
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import src.public_entry_runtime as entry
+
+          runtime = Path('src/public_entry_runtime.py').read_text(encoding='utf-8')
+          signup = Path('pages/Criar_Conta.py').read_text(encoding='utf-8')
+
+          assert entry._FREE_CTA_TARGET == '/Criar_Conta'
+          assert entry._PREMIUM_CTA_TARGET == '/Criar_Conta?plan=premium'
+          assert 'target="_self"' in runtime, 'CTAs públicos devem navegar na mesma aba'
+          assert 'linear-gradient(145deg,#082B49' in signup, 'Card gratuito precisa do gradiente azul RENOVA'
+          assert 'linear-gradient(145deg,#061F39' in signup, 'Card Personal precisa do gradiente premium RENOVA'
+          assert 'button svg path' in signup and 'stroke:#FFFFFF' in signup, 'Ícone de senha precisa de alto contraste'
+          assert 'OFERTA DE LANÇAMENTO' in signup
+          assert 'R$ 29,90/mês' in signup and 'R$ 9,90/mês' in signup
+          PY
       - name: Validate responsive UI architecture
         run: |
           python - <<'PY'
