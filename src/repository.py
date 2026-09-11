@@ -463,3 +463,110 @@ def fetch_ai_action_logs(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
         .execute()
     )
     return response.data or []
+
+
+def create_category(user_id: str, name: str, kind: str = "ambos", icon: str = "📌") -> None:
+    if kind not in {"receita", "despesa", "ambos"}:
+        raise ValueError("Tipo de categoria inválido.")
+    _client().table("categories").insert(
+        {"user_id": user_id, "name": name.strip(), "kind": kind, "icon": icon, "is_active": True}
+    ).execute()
+
+
+def create_transfer(
+    user_id: str,
+    source_account_id: str,
+    destination_account_id: str,
+    description: str,
+    amount: float,
+    occurred_on: date,
+) -> None:
+    if source_account_id == destination_account_id:
+        raise ValueError("Conta de origem e destino devem ser diferentes.")
+    _client().table("transactions").insert(
+        {
+            "user_id": user_id,
+            "account_id": source_account_id,
+            "destination_account_id": destination_account_id,
+            "category_id": None,
+            "kind": "transferencia",
+            "description": description.strip() or "Transferência",
+            "amount": float(amount),
+            "occurred_on": occurred_on.isoformat(),
+            "status": "pago",
+        }
+    ).execute()
+
+
+def update_account(
+    user_id: str,
+    account_id: str,
+    *,
+    name: str | None = None,
+    account_type: str | None = None,
+    initial_balance: float | None = None,
+    is_active: bool | None = None,
+) -> None:
+    payload: dict[str, Any] = {}
+    if name is not None:
+        payload["name"] = name.strip()
+    if account_type is not None:
+        payload["account_type"] = account_type
+    if initial_balance is not None:
+        payload["initial_balance"] = float(initial_balance)
+    if is_active is not None:
+        payload["is_active"] = bool(is_active)
+    if payload:
+        _client().table("accounts").update(payload).eq("id", account_id).eq("user_id", user_id).execute()
+
+
+def update_card(
+    user_id: str,
+    card_id: str,
+    *,
+    name: str | None = None,
+    credit_limit: float | None = None,
+    closing_day: int | None = None,
+    due_day: int | None = None,
+    is_active: bool | None = None,
+) -> None:
+    payload: dict[str, Any] = {}
+    if name is not None:
+        payload["name"] = name.strip()
+    if credit_limit is not None:
+        payload["credit_limit"] = float(credit_limit)
+    if closing_day is not None:
+        payload["closing_day"] = int(closing_day)
+    if due_day is not None:
+        payload["due_day"] = int(due_day)
+    if is_active is not None:
+        payload["is_active"] = bool(is_active)
+    if payload:
+        _client().table("cards").update(payload).eq("id", card_id).eq("user_id", user_id).execute()
+
+
+def update_financial_goal(
+    user_id: str,
+    goal_id: str,
+    *,
+    current_amount: float | None = None,
+    target_amount: float | None = None,
+    status: str | None = None,
+) -> None:
+    payload: dict[str, Any] = {}
+    if current_amount is not None:
+        payload["current_amount"] = float(current_amount)
+    if target_amount is not None:
+        payload["target_amount"] = float(target_amount)
+    if status is not None:
+        if status not in {"ativa", "concluida", "pausada"}:
+            raise ValueError("Status de meta inválido.")
+        payload["status"] = status
+    if payload:
+        _client().table("financial_goals").update(payload).eq("id", goal_id).eq("user_id", user_id).execute()
+
+
+def update_recurring_status(user_id: str, recurring_id: str, is_active: bool) -> None:
+    _client().table("recurring_transactions").update(
+        {"is_active": bool(is_active)}
+    ).eq("id", recurring_id).eq("user_id", user_id).execute()
