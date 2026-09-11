@@ -31,6 +31,17 @@ class AIReply:
     text: str
     executed: bool = False
     pending_confirmation: dict[str, Any] | None = None
+    pending_context: dict[str, Any] | None = None
+
+
+def _ask_for_missing(text: str, original_message: str, intent: str) -> AIReply:
+    return AIReply(
+        text=text,
+        pending_context={
+            "intent": intent,
+            "original_message": original_message.strip(),
+        },
+    )
 
 
 def _norm(value: str) -> str:
@@ -334,7 +345,7 @@ def _description(message: str, fallback: str) -> str:
     cleaned = re.sub(r"r\$\s*\d[\d.,]*", "", message, flags=re.I)
     cleaned = re.sub(r"\b\d[\d.,]*\b", "", cleaned)
     cleaned = re.sub(
-        r"\b(lanca|lance|registrar|registre|gastei|paguei|recebi|ganhei|despesa|receita|hoje|ontem|amanha|de|do|da|no|na|um|uma)\b",
+        r"\b(pode|por favor|lanca|lance|lancar|lançar|cria|crie|criar|registrar|registre|gastei|paguei|recebi|ganhei|despesa|receita|hoje|ontem|amanha|de|do|da|no|na|um|uma)\b",
         " ",
         cleaned,
         flags=re.I,
@@ -421,7 +432,7 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
     # Transferência entre contas.
     if any(term in normalized for term in ["transferir", "transferencia", "mover dinheiro", "mova dinheiro"]):
         if not amount:
-            return AIReply("Informe o valor da transferência.")
+            return _ask_for_missing("Informe o valor da transferência.", message, "transfer")
         source, destination = _pick_two_accounts(accounts, message)
         if source is None or destination is None:
             return AIReply("Cadastre pelo menos duas contas para fazer transferências.")
@@ -479,7 +490,7 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
         if target is None:
             return AIReply("Diga qual cartão deseja alterar.")
         if not amount:
-            return AIReply("Informe o novo limite do cartão.")
+            return _ask_for_missing("Informe o novo limite do cartão.", message, "card_limit")
         update_card(user_id, str(target["id"]), credit_limit=amount)
         text = f"✅ Limite do cartão **{target['cartao']}** atualizado para **{brl(amount)}**."
         log_ai_action(user_id, message, "update_card_limit", {"card_id": str(target["id"]), "limit": amount}, "executed", text)
@@ -501,7 +512,7 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
             if target is None:
                 target = goals.iloc[0]
             if not amount:
-                return AIReply("Informe o valor que deseja registrar na meta.")
+                return _ask_for_missing("Informe o valor que deseja registrar na meta.", message, "goal_update")
             current = float(target.get("current_amount") or 0) + amount
             update_financial_goal(user_id, str(target["id"]), current_amount=current)
             text = f"🎯 Meta **{target['name']}** atualizada para **{brl(current)}** acumulados."
@@ -509,7 +520,7 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
             return AIReply(text=text, executed=True)
 
         if not amount:
-            return AIReply("Informe o valor da meta. Exemplo: **Crie uma meta de R$ 5.000 para reserva de emergência.**")
+            return _ask_for_missing("Informe o valor da meta.", message, "goal_create")
         name = _description(message, "Meta financeira")
         create_financial_goal(user_id, name, amount, None)
         text = f"🎯 Meta criada: **{name} — {brl(amount)}**."
@@ -519,7 +530,7 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
     # Orçamento.
     if "orcamento" in normalized or "limite mensal" in normalized:
         if not amount:
-            return AIReply("Informe o valor do orçamento mensal.")
+            return _ask_for_missing("Informe o valor do orçamento mensal.", message, "budget")
         category_id, category_name = _infer_preferred_category(message, categories, preferences)
         if not category_id:
             return AIReply("Não encontrei uma categoria para esse orçamento.")
@@ -535,7 +546,7 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
 
     if recurring and (is_income or is_expense):
         if not amount:
-            return AIReply("Informe o valor do lançamento recorrente.")
+            return _ask_for_missing("Informe o valor do lançamento recorrente.", message, "recurring_transaction")
         account_id, account_name = _pick_preferred_account(accounts, message, preferences)
         category_id, category_name = _infer_preferred_category(message, categories, preferences)
         if not account_id:
@@ -560,7 +571,7 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
     # Receitas e despesas comuns.
     if is_income or is_expense:
         if not amount:
-            return AIReply("Informe o valor. Exemplo: **Gastei R$ 85 no mercado hoje.**")
+            return _ask_for_missing("Qual é o valor?", message, "transaction")
         account_id, account_name = _pick_preferred_account(accounts, message, preferences)
         category_id, category_name = _infer_preferred_category(message, categories, preferences)
         if not account_id:
