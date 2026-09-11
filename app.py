@@ -27,7 +27,6 @@ st.set_page_config(
 )
 apply_renova_theme()
 
-
 if "transactions" not in st.session_state:
     st.session_state.transactions = demo_transactions()
 if "accounts" not in st.session_state:
@@ -101,7 +100,7 @@ def render_dashboard() -> None:
         st.subheader("Despesas por categoria")
         expenses = tx[tx["tipo"] == "Despesa"].groupby("categoria", as_index=False)["valor"].sum()
         if not expenses.empty:
-            fig = px.donut(expenses, names="categoria", values="valor", hole=.62)
+            fig = px.pie(expenses, names="categoria", values="valor", hole=.62)
             fig.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
@@ -136,17 +135,28 @@ def render_transactions() -> None:
                 if not description.strip() or value <= 0:
                     st.error("Informe uma descrição e um valor maior que zero.")
                 else:
-                    new_row = pd.DataFrame([[dt, kind, category, description.strip(), value, account]], columns=st.session_state.transactions.columns)
-                    st.session_state.transactions = pd.concat([st.session_state.transactions, new_row], ignore_index=True)
+                    new_row = pd.DataFrame(
+                        [[dt, kind, category, description.strip(), value, account]],
+                        columns=st.session_state.transactions.columns,
+                    )
+                    st.session_state.transactions = pd.concat(
+                        [st.session_state.transactions, new_row], ignore_index=True
+                    )
                     st.success("Lançamento salvo.")
                     st.rerun()
 
     tx = st.session_state.transactions.copy().sort_values("data", ascending=False)
     f1, f2 = st.columns(2)
     with f1:
-        type_filter = st.multiselect("Filtrar por tipo", ["Receita", "Despesa"], default=["Receita", "Despesa"])
+        type_filter = st.multiselect(
+            "Filtrar por tipo",
+            ["Receita", "Despesa"],
+            default=["Receita", "Despesa"],
+        )
     with f2:
-        category_filter = st.multiselect("Filtrar por categoria", sorted(tx["categoria"].unique().tolist()))
+        category_filter = st.multiselect(
+            "Filtrar por categoria", sorted(tx["categoria"].unique().tolist())
+        )
     filtered = tx[tx["tipo"].isin(type_filter)]
     if category_filter:
         filtered = filtered[filtered["categoria"].isin(category_filter)]
@@ -175,7 +185,10 @@ def render_cards() -> None:
     cols = st.columns(min(3, max(1, len(cards))))
     for idx, row in cards.iterrows():
         with cols[idx % len(cols)]:
-            utilization = min(100.0, row["fatura"] / row["limite"] * 100 if row["limite"] else 0)
+            utilization = min(
+                100.0,
+                row["fatura"] / row["limite"] * 100 if row["limite"] else 0,
+            )
             st.markdown(
                 f"""
                 <div class="metric-card">
@@ -186,18 +199,26 @@ def render_cards() -> None:
                 """,
                 unsafe_allow_html=True,
             )
-            st.progress(utilization / 100, text=f"{utilization:.0f}% do limite utilizado")
+            st.progress(
+                utilization / 100,
+                text=f"{utilization:.0f}% do limite utilizado",
+            )
 
 
 def render_budgets() -> None:
     hero("Orçamentos por <strong>categoria</strong>", "Defina limites e descubra antes quando uma categoria está saindo do controle.")
     budgets = st.session_state.budgets.copy()
-    budgets["uso_%"] = (budgets["realizado"] / budgets["orcamento"] * 100).round(1)
+    budgets["uso_%"] = (
+        budgets["realizado"] / budgets["orcamento"] * 100
+    ).round(1)
     for _, row in budgets.iterrows():
         c1, c2 = st.columns([2.5, 1])
         with c1:
             st.write(f"**{row['categoria']}**")
-            st.progress(min(float(row["uso_%"]), 100.0) / 100, text=f"{row['uso_%']:.0f}% utilizado")
+            st.progress(
+                min(float(row["uso_%"]), 100.0) / 100,
+                text=f"{row['uso_%']:.0f}% utilizado",
+            )
         with c2:
             st.write(f"{brl(row['realizado'])} / {brl(row['orcamento'])}")
 
@@ -205,16 +226,40 @@ def render_budgets() -> None:
 def render_analysis() -> None:
     hero("Gráficos avançados para <strong>análise</strong>", "Entenda padrões, categorias e pontos de atenção sem depender de planilhas externas.")
     tx = st.session_state.transactions.copy()
-    expenses = tx[tx["tipo"] == "Despesa"].groupby("categoria", as_index=False)["valor"].sum().sort_values("valor", ascending=False)
-    incomes = tx[tx["tipo"] == "Receita"].groupby("categoria", as_index=False)["valor"].sum().sort_values("valor", ascending=False)
+    expenses = (
+        tx[tx["tipo"] == "Despesa"]
+        .groupby("categoria", as_index=False)["valor"]
+        .sum()
+        .sort_values("valor", ascending=False)
+    )
+    incomes = (
+        tx[tx["tipo"] == "Receita"]
+        .groupby("categoria", as_index=False)["valor"]
+        .sum()
+        .sort_values("valor", ascending=False)
+    )
     c1, c2 = st.columns(2)
     with c1:
-        fig = px.bar(expenses, x="valor", y="categoria", orientation="h", title="Ranking de despesas")
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=390)
+        fig = px.bar(
+            expenses,
+            x="valor",
+            y="categoria",
+            orientation="h",
+            title="Ranking de despesas",
+        )
+        fig.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=390,
+        )
         st.plotly_chart(fig, use_container_width=True)
     with c2:
         fig = px.bar(incomes, x="categoria", y="valor", title="Origem das receitas")
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=390)
+        fig.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=390,
+        )
         st.plotly_chart(fig, use_container_width=True)
 
 
@@ -225,7 +270,13 @@ def render_reports() -> None:
     report["valor"] = report["valor"].map(brl)
     st.dataframe(report, use_container_width=True, hide_index=True)
     csv = tx.to_csv(index=False).encode("utf-8-sig")
-    st.download_button("Baixar CSV", data=csv, file_name="renova-financas-lancamentos.csv", mime="text/csv", use_container_width=True)
+    st.download_button(
+        "Baixar CSV",
+        data=csv,
+        file_name="renova-financas-lancamentos.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
     st.caption("PDF e XLSX entram na próxima etapa do módulo de relatórios.")
 
 
@@ -238,22 +289,49 @@ def render_ai() -> None:
 
     alerts = []
     if summary["resultado"] < 0:
-        alerts.append(("🔴", "Resultado negativo", f"As despesas superaram as receitas em {brl(abs(summary['resultado']))}."))
+        alerts.append(
+            (
+                "🔴",
+                "Resultado negativo",
+                f"As despesas superaram as receitas em {brl(abs(summary['resultado']))}.",
+            )
+        )
     if summary["taxa_economia"] < 10 and summary["receitas"] > 0:
-        alerts.append(("🟠", "Margem de segurança baixa", f"A taxa de economia está em {summary['taxa_economia']:.1f}%."))
+        alerts.append(
+            (
+                "🟠",
+                "Margem de segurança baixa",
+                f"A taxa de economia está em {summary['taxa_economia']:.1f}%.",
+            )
+        )
     for _, row in budgets[budgets["uso"] >= .85].iterrows():
-        alerts.append(("🟡", f"Orçamento de {row['categoria']} em atenção", f"Já foi utilizado {row['uso']*100:.0f}% do limite definido."))
+        alerts.append(
+            (
+                "🟡",
+                f"Orçamento de {row['categoria']} em atenção",
+                f"Já foi utilizado {row['uso']*100:.0f}% do limite definido.",
+            )
+        )
     if not alerts:
-        alerts.append(("🟢", "Situação controlada", "Nenhuma urgência automática foi detectada nos dados atuais."))
+        alerts.append(
+            (
+                "🟢",
+                "Situação controlada",
+                "Nenhuma urgência automática foi detectada nos dados atuais.",
+            )
+        )
 
     for icon, title, text in alerts:
         st.markdown(f"### {icon} {title}")
         st.write(text)
-    st.info("A conversa com IA e execução de ações financeiras será conectada depois ao backend seguro. Nenhuma ação financeira automática será feita sem pedido explícito do usuário.")
+    st.info(
+        "A conversa com IA e execução de ações financeiras será conectada depois ao backend seguro. "
+        "Nenhuma ação financeira automática será feita sem pedido explícito do usuário."
+    )
 
 
-brand_block()
 with st.sidebar:
+    brand_block()
     st.caption("GESTÃO FINANCEIRA")
     page = st.radio(
         "Navegação",
@@ -274,7 +352,9 @@ with st.sidebar:
         st.success("Supabase conectado")
     else:
         st.warning("Modo demonstração")
-        st.caption("Configure SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY no Streamlit Secrets.")
+        st.caption(
+            "Configure SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY no Streamlit Secrets."
+        )
 
 pages = {
     "Dashboard": render_dashboard,
