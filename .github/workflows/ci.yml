@@ -19,4 +19,4 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q app.py src
       - name: Import modules
-        run: python -c "import src.data, src.repository, src.supabase_client, src.theme"
+        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme"
