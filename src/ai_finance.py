@@ -391,13 +391,31 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
         log_ai_action(user_id, message, "create_transaction", {"description": description, "amount": amount, "kind": kind, "account_id": account_id, "category_id": category_id}, "executed", text)
         return AIReply(text=text, executed=True)
 
+    # Pedido curto ou referência a um item financeiro existente:
+    # em vez de responder com erro técnico, tenta localizar dados relacionados
+    # e conduz a conversa naturalmente.
+    if not tx.empty:
+        mask = tx["descricao"].astype(str).map(_norm).str.contains(re.escape(normalized), regex=True, na=False)
+        related = tx.loc[mask].sort_values("data", ascending=False)
+        if not related.empty:
+            total = float(related["valor"].sum())
+            latest = related.iloc[0]
+            text = (
+                f"Encontrei **{len(related)} lançamento(s)** relacionado(s) a **{message.strip()}**, "
+                f"somando **{brl(total)}**. O mais recente é **{latest['descricao']} — {brl(float(latest['valor']))}**. "
+                "Você pode pedir, por exemplo, para **marcar como pago, alterar, cancelar, consultar o total ou lançar um novo**."
+            )
+            log_ai_action(user_id, message, "context_lookup", {"query": message.strip()}, "analysis", text)
+            return AIReply(text)
+
+    # Nunca expõe limitações internas como “não existe ferramenta”.
+    # Quando faltarem dados para executar, pergunta apenas o dado necessário.
     text = (
-        "Entendi o pedido, mas ainda não existe uma ferramenta interna compatível para executá-lo automaticamente. "
-        "No **Modo Execução Total**, eu executo sem confirmação prévia todas as ações suportadas e permitidas pela conta. "
-        "Para ações irreversíveis, exclusões, movimentações externas ou operações que possam gerar cobrança, "
-        "mantenho uma confirmação final de segurança antes de concluir."
+        f"Entendi: **{message.strip()}**. O que você quer que eu faça com isso? "
+        "Posso **lançar, consultar, alterar, organizar, marcar como pago ou cancelar**. "
+        "Se for um novo lançamento, informe também o **valor**."
     )
-    log_ai_action(user_id, message, "unsupported_or_incomplete", {}, "analysis", text)
+    log_ai_action(user_id, message, "needs_details", {"request": message.strip()}, "analysis", text)
     return AIReply(text)
 
 
