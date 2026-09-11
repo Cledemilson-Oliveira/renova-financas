@@ -13,6 +13,7 @@ from src.ai_training import (
     parse_keywords,
     set_training_item_active,
 )
+from src.global_ai_modal import render_global_ai_assistant
 from src.repository import fetch_financial_data, has_active_ai_subscription
 from src.supabase_client import current_user, is_authenticated, is_configured
 from src.theme import apply_renova_theme, brand_block
@@ -380,6 +381,8 @@ uid = _user_id()
 if not _has_access(uid):
     st.session_state.nav_page = "Assinar RENOVA IA"
     st.switch_page("app.py")
+
+render_global_ai_assistant(uid)
 
 try:
     training_items = list_training_items(uid)
