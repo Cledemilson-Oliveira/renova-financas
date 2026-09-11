@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 import pandas as pd
@@ -585,7 +585,7 @@ def upsert_ai_preference(
             "preference_value": preference_value,
             "source_text": source_text.strip(),
             "is_active": True,
-            "updated_at": "now()",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         },
         on_conflict="user_id,preference_key",
     ).execute()
