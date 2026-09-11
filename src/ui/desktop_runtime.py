@@ -3,12 +3,14 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from .desktop import apply_desktop_styles, tune_plotly_desktop
+from .desktop_legacy_cleanup import cleanup_legacy_desktop_runtime
 from .desktop_shell import inject_desktop_shell
 
 
 def apply_desktop_runtime() -> None:
     """Ativa somente a camada visual e o shell do desktop."""
     apply_desktop_styles()
+    cleanup_legacy_desktop_runtime()
     inject_desktop_shell()
 
 
