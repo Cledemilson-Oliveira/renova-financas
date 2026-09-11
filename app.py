@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from html import escape
 
 import pandas as pd
 import plotly.express as px
@@ -22,9 +23,11 @@ from src.repository import (
     create_card,
     create_category,
     create_transaction,
+    delete_transaction,
     fetch_financial_data,
     get_ai_plan,
     has_active_ai_subscription,
+    update_transaction,
     upsert_budget,
 )
 from src.supabase_client import (
@@ -37,6 +40,7 @@ from src.supabase_client import (
 )
 from src.theme import apply_renova_theme, auto_collapse_sidebar, brand_block, floating_ai_button
 from src.ai_finance import confirm_pending_action, process_message
+from src.urgencies import analyze_financial_urgencies, urgency_summary
 
 
 st.set_page_config(
@@ -47,7 +51,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.11.3"
+APP_BUILD = "2026.09.11.5"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -76,6 +80,19 @@ def metric_card(label: str, value: str, hint: str) -> None:
 
 
 def render_auth() -> None:
+    # A tela pública deve funcionar como landing page; nenhuma navegação interna
+    # do Streamlit fica exposta antes da autenticação.
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"],
+        [data-testid="stSidebarCollapsedControl"],
+        [data-testid="stSidebarCollapseButton"]{display:none!important}
+        [data-testid="stMainBlockContainer"]{max-width:1480px!important;margin:0 auto!important}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown(
         """
         <section class="sales-hero">
@@ -340,6 +357,62 @@ def _create_or_get_category(kind: str, name: str) -> tuple[str, str]:
     return clean, clean
 
 
+def render_urgency_center() -> None:
+    alerts = analyze_financial_urgencies(
+        transactions=st.session_state.get("transactions"),
+        accounts=st.session_state.get("accounts"),
+        budgets=st.session_state.get("budgets"),
+        cards=st.session_state.get("cards"),
+    )
+    summary = urgency_summary(alerts)
+
+    st.markdown("### 🧭 Central Inteligente de Urgências")
+    st.caption(
+        "Análise automática dos seus dados para destacar o que merece atenção primeiro. "
+        "Os alertas são recalculados sempre que os dados financeiros mudam."
+    )
+
+    if not alerts:
+        st.success("✅ Nenhuma urgência financeira relevante detectada neste momento.")
+        return
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Urgências", summary["total"])
+    with c2:
+        st.metric("Críticas", summary["critica"])
+    with c3:
+        st.metric("Altas", summary["alta"])
+    with c4:
+        st.metric("Médias", summary["media"])
+
+    for alert in alerts[:6]:
+        severity = str(alert.get("severity") or "info")
+        title = f"{alert.get('icon', '🔎')} {alert.get('severity_label', 'INFO')} • {alert.get('title', 'Alerta financeiro')}"
+        message = str(alert.get("message") or "")
+        action = str(alert.get("action") or "")
+
+        if severity == "critica":
+            st.error(f"**{title}**\n\n{message}\n\n**Ação recomendada:** {action}")
+        elif severity == "alta":
+            st.warning(f"**{title}**\n\n{message}\n\n**Ação recomendada:** {action}")
+        else:
+            st.info(f"**{title}**\n\n{message}\n\n**Ação recomendada:** {action}")
+
+    if len(alerts) > 6:
+        st.caption(f"Mais {len(alerts) - 6} alerta(s) de menor prioridade foram agrupados para manter o painel objetivo.")
+
+    action_cols = st.columns(2)
+    with action_cols[0]:
+        if st.button("📋 Revisar lançamentos", key="urgencies_open_transactions", use_container_width=True):
+            st.session_state.nav_page = "Lançamentos"
+            st.rerun()
+    with action_cols[1]:
+        if st.button("🤖 Analisar com RENOVA IA", key="urgencies_open_ai", use_container_width=True):
+            st.session_state.nav_page = "RENOVA IA" if has_renova_ai_access() else "Assinar RENOVA IA"
+            st.rerun()
+
+
 def render_dashboard() -> None:
     hero(
         "Sua vida financeira, <strong>em um só lugar</strong>",
@@ -360,6 +433,9 @@ def render_dashboard() -> None:
         metric_card("Resultado", brl(summary["resultado"]), f"Economia: {summary['taxa_economia']:.1f}%")
 
     st.write("")
+    render_urgency_center()
+    st.write("")
+
     left, right = st.columns([1.45, 1])
     with left:
         st.subheader("Evolução financeira")
@@ -421,7 +497,7 @@ def render_dashboard() -> None:
     else:
         latest = tx.sort_values("data", ascending=False).head(7).copy()
         latest["valor"] = latest["valor"].map(brl)
-        visible = [col for col in ["data", "tipo", "categoria", "descricao", "valor", "conta", "status"] if col in latest.columns]
+        visible = [col for col in ["data", "vencimento", "tipo", "categoria", "descricao", "valor", "conta", "status"] if col in latest.columns]
         st.dataframe(latest[visible], use_container_width=True, hide_index=True)
 
 
@@ -445,7 +521,7 @@ def _render_quick_transaction_dialog(kind_db: str) -> None:
     )
     c1, c2 = st.columns(2)
     with c1:
-        dt = st.date_input("Data", value=date.today(), key=f"quick_{kind_db}_date")
+        dt = st.date_input("Data do lançamento", value=date.today(), key=f"quick_{kind_db}_date")
         account_label = st.selectbox("Conta", list(accounts_map.keys()), key=f"quick_{kind_db}_account")
     with c2:
         category_label = st.selectbox("Categoria", options, key=f"quick_{kind_db}_category")
@@ -456,6 +532,24 @@ def _render_quick_transaction_dialog(kind_db: str) -> None:
             format="%.2f",
             key=f"quick_{kind_db}_amount",
         )
+
+    due_date = None
+    status_db = "pago"
+    if not is_income:
+        situation = st.radio(
+            "Situação da despesa",
+            ["✅ Pago", "🕒 Pendente"],
+            horizontal=True,
+            key=f"quick_{kind_db}_status",
+        )
+        if situation == "🕒 Pendente":
+            status_db = "previsto"
+            due_date = st.date_input(
+                "Data de vencimento",
+                value=date.today(),
+                key=f"quick_{kind_db}_due_date",
+                help="Esta data é usada pela Central de Urgências para identificar contas próximas do vencimento ou atrasadas.",
+            )
 
     needs_custom = category_label in {"Outros", "➕ Nova categoria..."}
     custom_category = ""
@@ -503,15 +597,24 @@ def _render_quick_transaction_dialog(kind_db: str) -> None:
                     description,
                     value,
                     dt,
+                    due_date=due_date,
+                    status=status_db,
                 )
                 st.success(f"{kind_label} salva em {category_name}.")
                 st.rerun()
             else:
-                new_row = pd.DataFrame(
-                    [[dt, kind_label, category_name, description.strip(), value, account_label]],
-                    columns=st.session_state.transactions.columns,
+                new_row = {
+                    "data": dt,
+                    "tipo": kind_label,
+                    "categoria": category_name,
+                    "descricao": description.strip(),
+                    "valor": value,
+                    "conta": account_label,
+                }
+                st.session_state.transactions = pd.concat(
+                    [st.session_state.transactions, pd.DataFrame([new_row])],
+                    ignore_index=True,
                 )
-                st.session_state.transactions = pd.concat([st.session_state.transactions, new_row], ignore_index=True)
                 st.rerun()
         except Exception as exc:
             st.error(f"Não foi possível salvar o lançamento: {exc}")
@@ -527,10 +630,138 @@ def open_income_dialog() -> None:
     _render_quick_transaction_dialog("receita")
 
 
+@st.dialog("✏️ Editar lançamento", width="large")
+def open_edit_transaction_dialog(transaction_id: str) -> None:
+    tx = st.session_state.transactions
+    matches = tx[tx["id"].astype(str) == str(transaction_id)] if "id" in tx.columns else pd.DataFrame()
+    if matches.empty:
+        st.error("Lançamento não encontrado.")
+        return
+
+    row = matches.iloc[0]
+    kind_db = "receita" if str(row["tipo"]) == "Receita" else "despesa"
+    accounts_map = account_options()
+    categories_map = category_options(kind_db)
+
+    current_account = str(row.get("conta") or "")
+    account_labels = list(accounts_map.keys())
+    account_index = account_labels.index(current_account) if current_account in account_labels else 0
+
+    current_category = str(row.get("categoria") or "")
+    category_labels = list(categories_map.keys())
+    category_index = category_labels.index(current_category) if current_category in category_labels else 0
+
+    current_status = str(row.get("status_db") or row.get("status") or "pago")
+    status_labels = {
+        "pago": "✅ Pago",
+        "previsto": "🕒 Pendente",
+        "atrasado": "🚨 Atrasado",
+    }
+    reverse_status = {label: key for key, label in status_labels.items()}
+    current_status_label = status_labels.get(current_status, "🕒 Pendente")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        edit_date = st.date_input("Data do lançamento", value=row["data"], key=f"edit_date_{transaction_id}")
+        edit_account = st.selectbox("Conta", account_labels, index=account_index, key=f"edit_account_{transaction_id}")
+        edit_status_label = st.selectbox(
+            "Situação",
+            list(reverse_status.keys()),
+            index=list(reverse_status.keys()).index(current_status_label),
+            key=f"edit_status_{transaction_id}",
+        )
+    with c2:
+        edit_value = st.number_input(
+            "Valor",
+            min_value=0.01,
+            value=float(row["valor"]),
+            step=10.0,
+            format="%.2f",
+            key=f"edit_value_{transaction_id}",
+        )
+        edit_category = st.selectbox(
+            "Categoria",
+            category_labels,
+            index=category_index,
+            key=f"edit_category_{transaction_id}",
+        )
+        has_due = st.checkbox(
+            "Possui data de vencimento",
+            value=pd.notna(row.get("vencimento")),
+            key=f"edit_has_due_{transaction_id}",
+        )
+
+    edit_due_date = None
+    if has_due:
+        current_due = row.get("vencimento")
+        if pd.isna(current_due) or current_due is None:
+            current_due = date.today()
+        edit_due_date = st.date_input(
+            "Data de vencimento",
+            value=current_due,
+            key=f"edit_due_{transaction_id}",
+        )
+
+    edit_description = st.text_input(
+        "Descrição",
+        value=str(row.get("descricao") or ""),
+        key=f"edit_description_{transaction_id}",
+    )
+
+    if st.button("💾 Salvar alterações", key=f"save_edit_{transaction_id}", use_container_width=True):
+        if not edit_description.strip():
+            st.error("Informe a descrição do lançamento.")
+            return
+        try:
+            update_transaction(
+                active_user_id(),
+                str(transaction_id),
+                account_id=accounts_map[edit_account],
+                category_id=categories_map[edit_category],
+                description=edit_description,
+                amount=edit_value,
+                occurred_on=edit_date,
+                due_date=edit_due_date if has_due else None,
+                status=reverse_status[edit_status_label],
+            )
+            _refresh_active_financial_data(active_user_id())
+            st.success("Lançamento atualizado.")
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Não foi possível atualizar: {exc}")
+
+
+@st.dialog("🗑️ Excluir lançamento")
+def open_delete_transaction_dialog(transaction_id: str) -> None:
+    tx = st.session_state.transactions
+    matches = tx[tx["id"].astype(str) == str(transaction_id)] if "id" in tx.columns else pd.DataFrame()
+    if matches.empty:
+        st.error("Lançamento não encontrado.")
+        return
+    row = matches.iloc[0]
+    st.warning(
+        f"Você está prestes a excluir **{row['descricao']} — {brl(float(row['valor']))}**. "
+        "Essa ação remove o lançamento dos seus registros."
+    )
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Cancelar", key=f"cancel_delete_{transaction_id}", use_container_width=True):
+            st.rerun()
+    with c2:
+        if st.button("🗑️ Confirmar exclusão", key=f"confirm_delete_{transaction_id}", type="primary", use_container_width=True):
+            try:
+                delete_transaction(active_user_id(), str(transaction_id))
+                _refresh_active_financial_data(active_user_id())
+                st.success("Lançamento excluído.")
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Não foi possível excluir: {exc}")
+
+
 def render_transactions() -> None:
     hero(
         "Receitas e <strong>despesas</strong>",
-        "Registre rapidamente cada movimentação e mantenha sua gestão organizada.",
+        "Registre, corrija e acompanhe cada movimentação sem perder o controle dos vencimentos.",
     )
 
     st.markdown(
@@ -570,7 +801,7 @@ def render_transactions() -> None:
     if income_clicked:
         open_income_dialog()
 
-    st.caption("Use os botões flutuantes para lançar receita ou despesa. Em “Outros”, especifique a categoria e ela será criada para sua conta.")
+    st.caption("Despesas pendentes podem receber uma data de vencimento; a Central de Urgências usa essa data para avisar quando estão próximas ou atrasadas.")
 
     tx = st.session_state.transactions.copy()
     if tx.empty:
@@ -585,10 +816,37 @@ def render_transactions() -> None:
     filtered = tx[tx["tipo"].isin(type_filter)]
     if category_filter:
         filtered = filtered[filtered["categoria"].isin(category_filter)]
+
     display = filtered.copy()
     display["valor"] = display["valor"].map(brl)
-    visible = [col for col in ["data", "tipo", "categoria", "descricao", "valor", "conta", "status"] if col in display.columns]
+    visible = [col for col in ["data", "vencimento", "tipo", "categoria", "descricao", "valor", "conta", "status"] if col in display.columns]
     st.dataframe(display[visible], use_container_width=True, hide_index=True)
+
+    if REAL_MODE and "id" in filtered.columns and not filtered.empty:
+        st.markdown("### Gerenciar lançamento")
+        st.caption("Selecione um registro para corrigir informações ou excluir um lançamento feito por engano.")
+        options = filtered.index.tolist()
+
+        def _tx_label(idx: int) -> str:
+            row = filtered.loc[idx]
+            due = row.get("vencimento")
+            due_text = f" • vence {due.strftime('%d/%m/%Y')}" if isinstance(due, date) else ""
+            return f"{row['data'].strftime('%d/%m/%Y')} • {row['descricao']} • {brl(float(row['valor']))}{due_text}"
+
+        selected_index = st.selectbox(
+            "Lançamento",
+            options,
+            format_func=_tx_label,
+            key="manage_transaction_select",
+        )
+        selected_row = filtered.loc[selected_index]
+        action_cols = st.columns(2)
+        with action_cols[0]:
+            if st.button("✏️ Editar lançamento", use_container_width=True, key="edit_selected_transaction"):
+                open_edit_transaction_dialog(str(selected_row["id"]))
+        with action_cols[1]:
+            if st.button("🗑️ Excluir lançamento", use_container_width=True, key="delete_selected_transaction"):
+                open_delete_transaction_dialog(str(selected_row["id"]))
 
 
 def render_categories() -> None:
@@ -829,7 +1087,7 @@ def render_reports() -> None:
         return
     report = tx.copy()
     report["valor"] = report["valor"].map(brl)
-    visible = [col for col in ["data", "tipo", "categoria", "descricao", "valor", "conta", "status"] if col in report.columns]
+    visible = [col for col in ["data", "vencimento", "tipo", "categoria", "descricao", "valor", "conta", "status"] if col in report.columns]
     st.dataframe(report[visible], use_container_width=True, hide_index=True)
     csv = tx[visible].to_csv(index=False).encode("utf-8-sig")
     st.download_button(
@@ -1051,6 +1309,76 @@ def render_ai() -> None:
     render_ai_chat("ai_page_input")
 
 
+def render_sidebar_profile() -> None:
+    user = current_user()
+    if not user:
+        return
+    metadata = getattr(user, "user_metadata", {}) or {}
+    email = str(getattr(user, "email", "") or "Usuário RENOVA")
+    full_name = str(metadata.get("full_name") or "").strip() or email.split("@")[0].replace(".", " ").title()
+    avatar_url = str(metadata.get("avatar_url") or metadata.get("picture") or "").strip()
+    initials = "".join(part[0] for part in full_name.split()[:2] if part).upper() or "R"
+
+    uid = session_user_id()
+    owner = False
+    ai_active = False
+    if REAL_MODE and uid:
+        try:
+            owner = is_owner(uid)
+            ai_active = owner or has_active_ai_subscription(uid)
+        except Exception:
+            pass
+
+    role_label = "Dono • Acesso Global" if owner else "Usuário RENOVA"
+    plan_label = "RENOVA IA ativa" if ai_active else "Plano Gratuito"
+    avatar_html = (
+        f'<img class="sidebar-profile-avatar-img" src="{escape(avatar_url)}" alt="Foto de perfil" />'
+        if avatar_url.startswith(("https://", "http://"))
+        else f'<div class="sidebar-profile-avatar">{escape(initials)}</div>'
+    )
+
+    st.markdown(
+        f"""
+        <style>
+        .sidebar-profile-card{{
+          margin:6px 4px 16px;padding:14px;border-radius:18px;
+          border:1px solid rgba(0,174,239,.24);
+          background:linear-gradient(145deg,rgba(5,24,38,.94),rgba(2,9,15,.98));
+          box-shadow:0 12px 30px rgba(0,0,0,.28);
+        }}
+        .sidebar-profile-top{{display:flex;align-items:center;gap:11px}}
+        .sidebar-profile-avatar,.sidebar-profile-avatar-img{{
+          width:48px;height:48px;border-radius:50%;flex:0 0 48px;
+          border:2px solid rgba(255,215,90,.72);box-shadow:0 0 18px rgba(0,174,239,.20);
+        }}
+        .sidebar-profile-avatar{{display:flex;align-items:center;justify-content:center;
+          background:linear-gradient(135deg,#073454,#0A1620);color:#FFE477;font-weight:950;font-size:1rem}}
+        .sidebar-profile-avatar-img{{object-fit:cover;background:#06131F}}
+        .sidebar-profile-name{{color:#fff;font-weight:950;font-size:.92rem;line-height:1.1}}
+        .sidebar-profile-email{{color:#94B5C7;font-size:.66rem;margin-top:4px;word-break:break-all}}
+        .sidebar-profile-chips{{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}}
+        .sidebar-profile-chip{{padding:4px 7px;border-radius:999px;background:rgba(0,174,239,.07);
+          border:1px solid rgba(0,174,239,.22);color:#AEEBFF;font-size:.55rem;font-weight:850}}
+        .sidebar-profile-chip.gold{{color:#FFE477;border-color:rgba(255,215,90,.28);background:rgba(255,215,90,.06)}}
+        </style>
+        <div class="sidebar-profile-card">
+          <div class="sidebar-profile-top">
+            {avatar_html}
+            <div>
+              <div class="sidebar-profile-name">{escape(full_name)}</div>
+              <div class="sidebar-profile-email">{escape(email)}</div>
+            </div>
+          </div>
+          <div class="sidebar-profile-chips">
+            <span class="sidebar-profile-chip">{escape(role_label)}</span>
+            <span class="sidebar-profile-chip gold">{escape(plan_label)}</span>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 NAV_PAGES = [
     "Dashboard",
     "Lançamentos",
@@ -1070,7 +1398,8 @@ if "nav_page" not in st.session_state:
 
 with st.sidebar:
     brand_block()
-    st.caption("GESTÃO FINANCEIRA")
+    render_sidebar_profile()
+    st.caption("MENU PRINCIPAL")
     previous_page = st.session_state.get("_last_nav_page", st.session_state.nav_page)
     page = st.radio(
         "Navegação",
@@ -1085,11 +1414,9 @@ with st.sidebar:
         st.session_state._last_nav_page = page
     st.divider()
     if REAL_MODE:
-        st.success("Supabase conectado")
         user = current_user()
         if user:
-            st.caption(str(getattr(user, "email", "Usuário autenticado")))
-            st.caption(f"Build {APP_BUILD}")
+            st.caption(f"Sistema conectado • Build {APP_BUILD}")
         if st.button("Sair", use_container_width=True):
             sign_out()
             st.rerun()
