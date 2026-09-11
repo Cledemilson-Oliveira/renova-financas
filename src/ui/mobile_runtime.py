@@ -13,14 +13,7 @@ from .mobile import (
 
 
 def _cleanup_desktop_shell_artifacts() -> None:
-    """Remove resíduos do shell desktop quando a sessão está em modo mobile.
-
-    O Streamlit reaproveita o DOM entre reruns. Se o usuário redimensionar a tela
-    ou abrir a mesma sessão em um WebView móvel, controles injetados pelo desktop
-    podem permanecer na árvore mesmo depois da troca de layout. O cleanup evita
-    a mistura de navegação e também elimina o principal ponto de vazamento visual
-    observado no painel mobile.
-    """
+    """Remove e desliga qualquer runtime desktop em sessões mobile."""
     components.html(
         """
         <script>
@@ -30,6 +23,29 @@ def _cleanup_desktop_shell_artifacts() -> None:
 
           function cleanup() {
             doc.body.classList.remove('renova-fin-sidebar-closed');
+
+            try {
+              if (win.__renovaFinanceSidebarObserver) {
+                win.__renovaFinanceSidebarObserver.disconnect();
+                win.__renovaFinanceSidebarObserver = null;
+              }
+              if (win.__renovaFinanceSidebarResizeHandler) {
+                win.removeEventListener('resize', win.__renovaFinanceSidebarResizeHandler);
+                win.__renovaFinanceSidebarResizeHandler = null;
+              }
+              if (win.__renovaFinDesktopShellObserverV4) {
+                win.__renovaFinDesktopShellObserverV4.disconnect();
+                win.__renovaFinDesktopShellObserverV4 = null;
+              }
+              if (win.__renovaFinDesktopShellResizeV4) {
+                win.removeEventListener('resize', win.__renovaFinDesktopShellResizeV4);
+                win.__renovaFinDesktopShellResizeV4 = null;
+              }
+              win.__renovaFinanceSidebarRefresh = null;
+              win.__renovaFinanceSidebarInitialized = false;
+              win.__renovaFinDesktopShellV4 = false;
+            } catch (e) {}
+
             [
               'renova-fin-sidebar-open',
               'renova-fin-sidebar-close',
