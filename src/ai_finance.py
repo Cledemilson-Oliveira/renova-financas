@@ -392,10 +392,10 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
         return AIReply(text=text, executed=True)
 
     text = (
-        "Eu posso administrar pelo chat tudo o que já está disponível no RENOVA Finanças: "
-        "**receitas, despesas, contas, cartões, transferências, categorias, recorrências, metas, orçamentos, "
-        "baixas de pagamento e análises**. Para executar, descreva a ação com os dados necessários. "
-        "Ações destrutivas continuam exigindo confirmação."
+        "Entendi o pedido, mas ainda não existe uma ferramenta interna compatível para executá-lo automaticamente. "
+        "No **Modo Execução Total**, eu executo sem confirmação prévia todas as ações suportadas e permitidas pela conta. "
+        "Para ações irreversíveis, exclusões, movimentações externas ou operações que possam gerar cobrança, "
+        "mantenho uma confirmação final de segurança antes de concluir."
     )
     log_ai_action(user_id, message, "unsupported_or_incomplete", {}, "analysis", text)
     return AIReply(text)
