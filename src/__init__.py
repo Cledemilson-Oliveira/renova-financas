@@ -30,6 +30,7 @@ def _install_theme_mode_runtime() -> None:
     import streamlit as st
 
     from . import theme as _theme
+    from .planning_nav_runtime import install_planning_navigation_runtime
     from .sidebar_runtime import (
         auto_collapse_sidebar_robust,
         inject_sidebar_runtime_css,
@@ -44,6 +45,7 @@ def _install_theme_mode_runtime() -> None:
         return
 
     install_device_runtime()
+    install_planning_navigation_runtime(_theme)
 
     original_apply_theme = _theme.apply_renova_theme
     original_brand_block = _theme.brand_block
