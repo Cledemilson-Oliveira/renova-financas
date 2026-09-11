@@ -7,6 +7,9 @@ import streamlit as st
 from supabase import Client, create_client
 
 
+DEFAULT_PUBLIC_APP_URL = "https://minhas-financas-renova.streamlit.app"
+
+
 def _secret(name: str) -> Optional[str]:
     try:
         value = st.secrets.get(name)
@@ -15,6 +18,12 @@ def _secret(name: str) -> Optional[str]:
     except Exception:
         pass
     return os.getenv(name)
+
+
+def public_app_url() -> str:
+    """URL pública canônica usada por confirmação de e-mail e recuperação."""
+    value = _secret("PUBLIC_APP_URL") or DEFAULT_PUBLIC_APP_URL
+    return str(value).strip().rstrip("/")
 
 
 def is_configured() -> bool:
@@ -55,23 +64,42 @@ def sign_in(email: str, password: str):
     return response
 
 
-def sign_up(email: str, password: str, full_name: str = ""):
+def sign_up(email: str, password: str, full_name: str = "", phone: str = ""):
     client = get_supabase()
     if client is None:
         raise RuntimeError("Supabase ainda não configurado.")
 
+    metadata = {}
+    if full_name.strip():
+        metadata["full_name"] = full_name.strip()
+    if phone.strip():
+        metadata["phone"] = phone.strip()
+
     payload = {
         "email": email.strip().lower(),
         "password": password,
+        "options": {
+            "email_redirect_to": public_app_url(),
+            "data": metadata,
+        },
     }
-    if full_name.strip():
-        payload["options"] = {"data": {"full_name": full_name.strip()}}
 
     response = client.auth.sign_up(payload)
     if response.session is not None:
         st.session_state.auth_user = response.user
         st.session_state.auth_session = response.session
     return response
+
+
+def request_password_reset(email: str) -> None:
+    """Solicita ao Supabase um e-mail seguro de recuperação de senha."""
+    client = get_supabase()
+    if client is None:
+        raise RuntimeError("Supabase ainda não configurado.")
+    client.auth.reset_password_for_email(
+        email.strip().lower(),
+        {"redirect_to": public_app_url()},
+    )
 
 
 def current_user():
