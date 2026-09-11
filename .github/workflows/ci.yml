@@ -35,7 +35,8 @@ jobs:
                   {
                       "id": "tx-1",
                       "tipo": "Despesa",
-                      "data": today - timedelta(days=2),
+                      "data": today,
+                      "vencimento": today - timedelta(days=2),
                       "status": "previsto",
                       "valor": 180.0,
                       "descricao": "Energia",
