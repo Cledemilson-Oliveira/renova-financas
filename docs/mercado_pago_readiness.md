@@ -1,73 +1,87 @@
-# RENOVA Finanças — preparação para assinaturas Mercado Pago
+# RENOVA Finanças — assinaturas Mercado Pago
 
 Data da revisão: 11/09/2026
 
-## Estado encontrado
+## Estado atual
 
-- O plano `renova_ia` já existe no Supabase com preço de **R$ 9,90/mês** e provedor `mercado_pago`.
-- A tabela `ai_subscriptions` já controla acesso por status e período.
-- O app já bloqueia a RENOVA IA Personal para quem não possui assinatura ativa.
-- O campo `checkout_url` do plano ainda está vazio.
-- Ainda não existem Edge Functions no projeto `renova-financas`.
-- Ainda não existe assinatura registrada em `ai_subscriptions`.
-- O token privado do Mercado Pago não deve ir para Streamlit/secrets públicos nem para o navegador. A criação e atualização da assinatura devem ocorrer no backend.
+- O plano interno `renova_ia` existe no Supabase por **R$ 9,90/mês** com provedor `mercado_pago`.
+- O checkout interno aponta para `Checkout_Assinatura`, dentro do próprio RENOVA Finanças.
+- A tabela `ai_subscriptions` controla acesso, status e dados do provedor.
+- `subscription_checkout_sessions` correlaciona usuário RENOVA e assinatura Mercado Pago por `external_reference` única.
+- `mercado_pago_webhook_events` registra notificações com chave idempotente para evitar processamento duplicado.
+- A Edge Function autenticada `mercado-pago-create-subscription` está implantada.
+- A Edge Function pública `mercado-pago-webhook` está implantada com validação HMAC própria.
+- O código-fonte das duas Edge Functions está versionado em `supabase/functions/`.
+- O app já possui a página autenticada `pages/Checkout_Assinatura.py`.
+- O token privado do Mercado Pago nunca deve ir para o navegador, GitHub ou Streamlit público.
 
-## Arquitetura definida
+## Fluxo definido
 
-1. **Plano**
-   - Criar um plano mensal no Mercado Pago via `POST /preapproval_plan`.
-   - Persistir o ID recebido em `ai_subscription_plans.provider_plan_id`.
+1. **Usuário escolhe RENOVA IA Personalizada**
+   - O CTA navega internamente para `Checkout_Assinatura`.
+   - O usuário precisa estar autenticado.
 
-2. **Início do checkout**
-   - O Streamlit chama uma Edge Function autenticada.
-   - A função valida o usuário e o plano `renova_ia`.
-   - Cria uma linha em `subscription_checkout_sessions` com uma `external_reference` única.
-   - Cria a assinatura no Mercado Pago via `POST /preapproval`.
-   - Salva `provider_subscription_id` e `init_point`.
-   - Devolve somente o `init_point` ao app para redirecionamento.
+2. **Criação da assinatura**
+   - A página chama `mercado-pago-create-subscription` com o JWT Supabase do usuário.
+   - A função valida usuário e plano `renova_ia`.
+   - Cria uma `external_reference` no formato `renova_ia:<user_id>:<uuid>`.
+   - Cria a assinatura diretamente em `POST /preapproval`, sem plano Mercado Pago associado.
+   - A assinatura nasce como `pending`, permitindo que o Mercado Pago apresente o checkout para o assinante configurar o meio de pagamento.
+   - O `id` e o `init_point` retornados são salvos no Supabase.
 
 3. **Webhook**
-   - Uma Edge Function pública recebe notificações do Mercado Pago.
-   - A origem deve ser validada pelo header `x-signature`/request id conforme documentação do Mercado Pago.
-   - O evento é gravado em `mercado_pago_webhook_events` usando chave idempotente.
-   - A função consulta o recurso no Mercado Pago antes de liberar acesso.
-   - Atualiza `ai_subscriptions` com status, período, próxima cobrança e IDs do provedor.
+   - Endpoint: `https://ysxttnnkuyhzvkjheqfy.supabase.co/functions/v1/mercado-pago-webhook`.
+   - A função valida `x-signature`, `x-request-id` e `data.id` com HMAC-SHA256.
+   - Cada evento é registrado antes do processamento.
+   - Eventos duplicados são ignorados com segurança.
+   - `subscription_preapproval` consulta `/preapproval/{id}` e sincroniza o estado da assinatura.
+   - `subscription_authorized_payment` consulta `/authorized_payments/{id}` e atualiza também a última cobrança.
+   - `payment` consulta `/v1/payments/{id}` e registra pagamentos aprovados quando há vínculo RENOVA identificável.
 
 4. **Liberação de acesso**
-   - `authorized/active` -> acesso RENOVA IA Personal liberado.
-   - `pending` -> acesso ainda não liberado.
-   - `past_due/paused` -> acesso suspenso conforme regra de negócio.
-   - `cancelled/expired` -> acesso removido ao fim do período aplicável.
+   - Mercado Pago `authorized` -> RENOVA `active`: libera IA Personalizada.
+   - `pending` -> mantém acesso Premium bloqueado.
+   - `paused` -> RENOVA `past_due`.
+   - `cancelled` -> RENOVA `cancelled`.
 
-## Banco preparado pela migration 012
+## Banco
 
-A migration `012_mercado_pago_billing_readiness.sql` adiciona:
+A preparação de billing adicionou:
 
 - `provider_plan_id` e `back_url` no cadastro do plano;
-- rastreamento de `external_reference`, `init_point`, próxima cobrança e status do provedor na assinatura;
-- índice de `plan_code`, corrigindo a ausência apontada pelo Advisor do Supabase;
-- `subscription_checkout_sessions` para correlacionar usuário, plano e assinatura sem expor IDs sensíveis;
-- `mercado_pago_webhook_events` para auditoria e idempotência dos webhooks.
+- `external_reference`, `init_point`, próxima cobrança e status do provedor em `ai_subscriptions`;
+- índice de `plan_code`;
+- `subscription_checkout_sessions`;
+- `mercado_pago_webhook_events`.
 
-## Pontos antes de produção
+O campo `provider_plan_id` permanece opcional porque o fluxo atual usa **assinatura sem plano Mercado Pago associado**, mantendo uma referência única por usuário RENOVA.
 
-- Configurar o Access Token **somente** como segredo do backend/Edge Function.
-- Configurar a chave secreta do webhook **somente** no backend.
-- Criar o plano de assinatura de produção e registrar `provider_plan_id`.
-- Criar/deploy da função `mercado-pago-create-subscription` com JWT obrigatório.
-- Criar/deploy da função `mercado-pago-webhook` com validação própria de assinatura e sem JWT do usuário.
-- Testar: checkout pendente, pagamento autorizado, recusa, cancelamento e reprocessamento do mesmo webhook.
-- Confirmar que nenhuma chamada do cliente consegue gravar diretamente `ai_subscriptions` ou eventos de webhook.
+## Únicos passos externos restantes para produção
+
+1. No projeto Supabase `renova-financas`, cadastrar como segredos das Edge Functions:
+   - `MP_ACCESS_TOKEN` = Access Token de produção do Mercado Pago.
+   - `MP_WEBHOOK_SECRET` = chave secreta gerada ao configurar o webhook no Mercado Pago.
+2. No Mercado Pago, cadastrar o webhook acima e habilitar pelo menos os tópicos:
+   - `subscription_preapproval`;
+   - `subscription_authorized_payment`;
+   - `payment`.
+3. Executar um teste real controlado do ciclo:
+   - iniciar checkout;
+   - concluir meio de pagamento;
+   - confirmar webhook válido;
+   - verificar `ai_subscriptions.status = active`;
+   - confirmar liberação da RENOVA IA Personalizada;
+   - validar cancelamento e nova cobrança.
 
 ## Auditoria adicional
 
 - Supabase Security Advisor: proteção contra senhas vazadas está desativada; habilitar antes da abertura comercial é recomendado.
-- Performance Advisor: existem políticas RLS permissivas duplicadas por causa do acesso global da conta dono. Não bloqueiam o lançamento, mas devem ser consolidadas em uma etapa de otimização.
-- Índices ainda marcados como “unused” não devem ser removidos agora: o projeto é novo e ainda não acumulou carga suficiente para esse indicador ser conclusivo.
+- Existem políticas RLS permissivas duplicadas por causa do acesso global da conta dono. Não bloqueiam o checkout, mas devem ser consolidadas em uma etapa posterior de otimização.
+- Índices marcados como `unused` não devem ser removidos agora: o projeto ainda é novo e não acumulou carga suficiente para esse indicador ser conclusivo.
 
 ## Referências oficiais Mercado Pago
 
 - Assinaturas: https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/overview
-- Criar plano: https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/create-preapproval-plan/post
 - Criar assinatura: https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/create-preapproval/post
-- Notificações de assinaturas: https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications
+- Obter fatura recorrente: https://www.mercadopago.com.br/developers/pt/reference/online-payments/subscriptions/get-authorized-payment/get
+- Webhooks: https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications
