@@ -570,3 +570,46 @@ def update_recurring_status(user_id: str, recurring_id: str, is_active: bool) ->
     _client().table("recurring_transactions").update(
         {"is_active": bool(is_active)}
     ).eq("id", recurring_id).eq("user_id", user_id).execute()
+
+
+def upsert_ai_preference(
+    user_id: str,
+    preference_key: str,
+    preference_value: dict[str, Any],
+    source_text: str = "",
+) -> None:
+    _client().table("ai_user_preferences").upsert(
+        {
+            "user_id": user_id,
+            "preference_key": preference_key.strip(),
+            "preference_value": preference_value,
+            "source_text": source_text.strip(),
+            "is_active": True,
+            "updated_at": "now()",
+        },
+        on_conflict="user_id,preference_key",
+    ).execute()
+
+
+def fetch_ai_preferences(user_id: str) -> list[dict[str, Any]]:
+    response = (
+        _client()
+        .table("ai_user_preferences")
+        .select("preference_key,preference_value,source_text,is_active,updated_at")
+        .eq("user_id", user_id)
+        .eq("is_active", True)
+        .order("updated_at", desc=True)
+        .execute()
+    )
+    return response.data or []
+
+
+def deactivate_ai_preference(user_id: str, preference_key: str) -> None:
+    (
+        _client()
+        .table("ai_user_preferences")
+        .update({"is_active": False})
+        .eq("user_id", user_id)
+        .eq("preference_key", preference_key)
+        .execute()
+    )
