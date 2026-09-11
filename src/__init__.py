@@ -34,10 +34,11 @@ def _install_recurring_ai_runtime() -> None:
 
 
 def _install_theme_mode_runtime() -> None:
-    """Acopla tema e seleciona um único runtime visual por dispositivo."""
+    """Acopla tema e seleciona runtimes independentes de desktop/mobile."""
     import streamlit as st
 
     from . import theme as _theme
+    from .navigation_runtime import install_navigation_runtime
     from .planning_nav_runtime import install_planning_navigation_runtime
     from .theme_accessibility import inject_accessibility_css
     from .theme_modes import apply_display_mode, render_appearance_selector
@@ -47,6 +48,7 @@ def _install_theme_mode_runtime() -> None:
         return
 
     install_device_runtime()
+    install_navigation_runtime()
     install_planning_navigation_runtime(_theme)
 
     original_apply_theme = _theme.apply_renova_theme
