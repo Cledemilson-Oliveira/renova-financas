@@ -1,6 +1,13 @@
 """RENOVA Finanças application package."""
 
 
+def _install_html_runtime() -> None:
+    """Renderiza blocos HTML estruturados sem passar pelo parser Markdown."""
+    from .html_runtime import install_html_runtime
+
+    install_html_runtime()
+
+
 def _install_public_entry_runtime() -> None:
     """Conecta os CTAs públicos às rotas reais de cadastro."""
     from .public_entry_runtime import install_public_entry_runtime
@@ -127,6 +134,7 @@ def _install_theme_mode_runtime() -> None:
     _theme._renova_theme_modes_installed = True
 
 
+_install_html_runtime()
 _install_public_entry_runtime()
 _install_ai_training_runtime()
 _install_recurring_finance_runtime()
