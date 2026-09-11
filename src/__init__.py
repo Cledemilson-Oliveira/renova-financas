@@ -22,6 +22,12 @@ def _install_theme_mode_runtime() -> None:
     import streamlit as st
 
     from . import theme as _theme
+    from .sidebar_runtime import (
+        auto_collapse_sidebar_robust,
+        inject_sidebar_runtime_css,
+        render_ecosystem_product_card,
+        render_sidebar_collapse_control,
+    )
     from .theme_accessibility import inject_accessibility_css
     from .theme_modes import apply_display_mode, render_appearance_selector
     from .ui import apply_device_ui, install_device_runtime
@@ -39,9 +45,13 @@ def _install_theme_mode_runtime() -> None:
         apply_display_mode()
         inject_accessibility_css()
         apply_device_ui()
+        inject_sidebar_runtime_css()
 
     def brand_block_with_appearance() -> None:
+        # Controle explícito: não depende da posição do botão nativo do Streamlit.
+        render_sidebar_collapse_control(st)
         original_brand_block()
+        render_ecosystem_product_card(st)
         render_appearance_selector()
 
         # A gestão de usuários só é exposta visualmente para a conta dono.
@@ -62,6 +72,9 @@ def _install_theme_mode_runtime() -> None:
 
     _theme.apply_renova_theme = apply_theme_with_mode
     _theme.brand_block = brand_block_with_appearance
+    # O app importa esta função depois que o pacote src já foi inicializado.
+    # Assim, toda troca de página usa o recolhimento resiliente automaticamente.
+    _theme.auto_collapse_sidebar = auto_collapse_sidebar_robust
     _theme._renova_theme_modes_installed = True
 
 
