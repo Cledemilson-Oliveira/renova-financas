@@ -46,6 +46,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
+APP_BUILD = "2026.09.11.2"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -844,6 +845,7 @@ with st.sidebar:
         user = current_user()
         if user:
             st.caption(str(getattr(user, "email", "Usuário autenticado")))
+            st.caption(f"Build {APP_BUILD}")
         if st.button("Sair", use_container_width=True):
             sign_out()
             st.rerun()
