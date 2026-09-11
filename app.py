@@ -31,7 +31,7 @@ from src.supabase_client import (
     sign_out,
     sign_up,
 )
-from src.theme import apply_renova_theme, brand_block
+from src.theme import apply_renova_theme, brand_block, floating_ai_button
 from src.ai_finance import confirm_pending_action, process_message
 
 
@@ -153,6 +153,9 @@ try:
 except Exception:
     st.error("Não foi possível carregar seus dados financeiros agora.")
     st.stop()
+
+
+floating_ai_button()
 
 
 def account_options() -> dict[str, str]:
@@ -544,6 +547,7 @@ def render_ai() -> None:
             st.write(text)
 
     st.markdown("### Converse com a RENOVA IA")
+    st.caption("🧠 Ela também aprende preferências suas. Ex.: “Quando eu disser pensão, use a categoria Família” ou “Use sempre a conta Nubank”.")
     st.caption(
         "Exemplos: “Gastei R$ 85 no mercado hoje”, “Recebi R$ 1.500 de um freelance”, "
         "“Crie uma meta de R$ 5.000”, “Defina orçamento de R$ 600 para alimentação” "
@@ -632,12 +636,25 @@ def render_ai() -> None:
         st.rerun()
 
 
+NAV_PAGES = ["Dashboard", "Lançamentos", "Contas", "Cartões", "Orçamentos", "Análises", "Relatórios", "RENOVA IA"]
+
+if "nav_page" not in st.session_state:
+    st.session_state.nav_page = "Dashboard"
+
+if st.query_params.get("assistant") == "1":
+    st.session_state.nav_page = "RENOVA IA"
+    try:
+        del st.query_params["assistant"]
+    except Exception:
+        pass
+
 with st.sidebar:
     brand_block()
     st.caption("GESTÃO FINANCEIRA")
     page = st.radio(
         "Navegação",
-        ["Dashboard", "Lançamentos", "Contas", "Cartões", "Orçamentos", "Análises", "Relatórios", "RENOVA IA"],
+        NAV_PAGES,
+        key="nav_page",
         label_visibility="collapsed",
     )
     st.divider()
