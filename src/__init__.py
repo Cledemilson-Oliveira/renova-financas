@@ -17,6 +17,14 @@ def _install_ai_training_runtime() -> None:
     install_training_runtime(_ai_finance, _ai_training)
 
 
+def _install_recurring_finance_runtime() -> None:
+    """Gera automaticamente contas/receitas recorrentes antes das leituras financeiras."""
+    from . import repository as _repository
+    from .recurring_runtime import install_recurring_runtime
+
+    install_recurring_runtime(_repository)
+
+
 def _install_theme_mode_runtime() -> None:
     """Acopla tema, layout responsivo e atalhos globais da identidade RENOVA."""
     import streamlit as st
@@ -54,6 +62,21 @@ def _install_theme_mode_runtime() -> None:
         render_ecosystem_product_card(st)
         render_appearance_selector()
 
+        # Planejamento recorrente fica disponível para todo usuário autenticado.
+        try:
+            from .supabase_client import current_user
+
+            user = current_user()
+            uid = str(user.id) if user and getattr(user, "id", None) else ""
+            if uid:
+                st.page_link(
+                    "pages/Planejamento_Caixa.py",
+                    label="📈 Planejamento de Caixa",
+                    use_container_width=True,
+                )
+        except Exception:
+            pass
+
         # A gestão de usuários só é exposta visualmente para a conta dono.
         try:
             from .access import is_owner
@@ -80,4 +103,5 @@ def _install_theme_mode_runtime() -> None:
 
 _install_public_entry_runtime()
 _install_ai_training_runtime()
+_install_recurring_finance_runtime()
 _install_theme_mode_runtime()
