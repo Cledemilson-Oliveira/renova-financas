@@ -708,13 +708,28 @@ def _execute_ai_prompt(prompt: str) -> None:
                 "categories": st.session_state.categories,
                 "goals": st.session_state.goals,
             }
-            result = process_message(user_id, prompt, bundle)
+
+            pending_context = st.session_state.get("ai_pending_context")
+            effective_prompt = prompt
+            if pending_context:
+                original = str(pending_context.get("original_message") or "").strip()
+                if original:
+                    effective_prompt = f"{original} {prompt}".strip()
+
+            result = process_message(user_id, effective_prompt, bundle)
+
             if result.pending_confirmation:
                 st.session_state.ai_pending_action = result.pending_confirmation
-                st.session_state.ai_pending_command = prompt
+                st.session_state.ai_pending_command = effective_prompt
+
+            if result.pending_context:
+                st.session_state.ai_pending_context = result.pending_context
+            else:
+                st.session_state.pop("ai_pending_context", None)
 
         st.session_state.ai_messages.append({"role": "assistant", "content": result.text})
         if result.executed:
+            st.session_state.pop("ai_pending_context", None)
             _refresh_active_financial_data(user_id)
     except Exception as exc:
         st.session_state.ai_messages.append(
@@ -735,6 +750,8 @@ def render_ai_chat(input_key: str) -> None:
 
     if st.session_state.get("ai_pending_action"):
         st.warning("Existe uma ação sensível aguardando confirmação. Digite **CONFIRMAR** ou **CANCELAR**.")
+    elif st.session_state.get("ai_pending_context"):
+        st.info("Estou aguardando a informação que falta para concluir o pedido anterior.")
 
     prompt = st.chat_input("Digite seu comando financeiro...", key=input_key)
     if prompt:
