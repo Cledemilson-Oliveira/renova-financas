@@ -22,6 +22,7 @@ from src.repository import (
     update_account,
     update_card,
     update_financial_goal,
+    update_transaction,
     update_transaction_status,
 )
 
@@ -82,6 +83,26 @@ def _extract_date(text: str) -> date:
     return date.today()
 
 
+def _extract_explicit_date(text: str) -> date | None:
+    """Retorna uma data somente quando o usuário realmente informou uma."""
+    normalized = _norm(text)
+    if any(term in normalized for term in ["hoje", "amanha", "ontem"]):
+        return _extract_date(text)
+
+    if re.search(r"\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b", text):
+        return _extract_date(text)
+
+    m = re.search(r"\bdia\s+(\d{1,2})\b", normalized)
+    if m:
+        day = int(m.group(1))
+        today = date.today()
+        try:
+            return date(today.year, today.month, day)
+        except ValueError:
+            return None
+    return None
+
+
 def _infer_category(message: str, categories) -> tuple[str | None, str]:
     normalized = _norm(message)
     if categories is None or categories.empty:
@@ -126,6 +147,73 @@ def _find_named_row(df, name_column: str, message: str):
         name = str(row[name_column])
         token = _norm(name)
         if token and token in normalized and len(token) > best_len:
+            best = row
+            best_len = len(token)
+    return best
+
+
+def _find_transaction_target(tx, message: str):
+    """Localiza o lançamento citado sem assumir silenciosamente um item errado."""
+    if tx is None or tx.empty:
+        return None
+
+    direct = _find_named_row(tx, "descricao", message)
+    if direct is not None:
+        return direct
+
+    normalized = _norm(message)
+    recent = tx.sort_values("data", ascending=False)
+
+    if any(term in normalized for term in ["ultimo lancamento", "lancamento mais recente", "ultimo registro"]):
+        return recent.iloc[0]
+    if any(term in normalized for term in ["ultima despesa", "despesa mais recente"]):
+        expenses = recent[recent["tipo"] == "Despesa"]
+        return expenses.iloc[0] if not expenses.empty else None
+    if any(term in normalized for term in ["ultima receita", "receita mais recente"]):
+        incomes = recent[recent["tipo"] == "Receita"]
+        return incomes.iloc[0] if not incomes.empty else None
+
+    # Correspondência parcial para descrições como "Pensão Alice" quando o
+    # usuário escreve apenas "pensão". Palavras muito curtas são ignoradas.
+    best = None
+    best_score = 0
+    for _, row in recent.head(30).iterrows():
+        description = _norm(str(row.get("descricao") or ""))
+        words = [word for word in re.findall(r"[a-z0-9]+", description) if len(word) >= 4]
+        score = sum(len(word) for word in words if word in normalized)
+        if score > best_score:
+            best = row
+            best_score = score
+    return best if best_score > 0 else None
+
+
+def _find_explicit_category(categories, message: str):
+    if categories is None or categories.empty:
+        return None
+    normalized = _norm(message)
+    tail = normalized.split(" para ", 1)[-1] if " para " in normalized else normalized
+    best = None
+    best_len = -1
+    for _, row in categories.iterrows():
+        name = str(row["name"])
+        token = _norm(name)
+        if token and token in tail and len(token) > best_len:
+            best = row
+            best_len = len(token)
+    return best
+
+
+def _find_explicit_account(accounts, message: str):
+    if accounts is None or accounts.empty:
+        return None
+    normalized = _norm(message)
+    tail = normalized.split(" para ", 1)[-1] if " para " in normalized else normalized
+    best = None
+    best_len = -1
+    for _, row in accounts.iterrows():
+        name = str(row["conta"])
+        token = _norm(name)
+        if token and token in tail and len(token) > best_len:
             best = row
             best_len = len(token)
     return best
@@ -398,13 +486,19 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
         return AIReply(text=text)
 
     # Operações destrutivas sempre exigem confirmação.
-    if any(term in normalized for term in ["apagar", "excluir", "deletar", "remover lancamento"]):
-        candidates = tx.sort_values("data", ascending=False).head(5) if not tx.empty else tx
+    if any(term in normalized for term in [
+        "apagar", "excluir", "deletar", "remover lancamento", "cancelar lancamento", "cancele o lancamento"
+    ]):
+        candidates = tx.sort_values("data", ascending=False).head(10) if not tx.empty else tx
         if candidates.empty:
             return AIReply("Não encontrei lançamentos para excluir.")
-        target = _find_named_row(candidates, "descricao", message)
+        target = _find_transaction_target(candidates, message)
         if target is None:
-            target = candidates.iloc[0]
+            return _ask_for_missing(
+                "Qual lançamento você quer cancelar? Informe a descrição ou diga **último lançamento**.",
+                message,
+                "cancel_transaction",
+            )
         payload = {
             "transaction_id": str(target["id"]),
             "new_status": "cancelado",
@@ -421,12 +515,181 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
     if any(term in normalized for term in ["marcar como pago", "marque como pago", "dar baixa", "baixar conta"]):
         if tx.empty:
             return AIReply("Não encontrei lançamentos para dar baixa.")
-        target = _find_named_row(tx, "descricao", message)
+        target = _find_transaction_target(tx, message)
         if target is None:
-            target = tx.sort_values("data", ascending=False).iloc[0]
+            return _ask_for_missing(
+                "Qual lançamento você quer marcar como pago?",
+                message,
+                "mark_paid",
+            )
         update_transaction_status(user_id, str(target["id"]), "pago")
         text = f"✅ **{target['descricao']}** foi marcado como pago."
         log_ai_action(user_id, message, "mark_paid", {"transaction_id": str(target["id"])}, "executed", text)
+        return AIReply(text=text, executed=True)
+
+    status_requests = {
+        "previsto": ["marcar como previsto", "marque como previsto", "deixar como previsto", "deixe como previsto"],
+        "atrasado": ["marcar como atrasado", "marque como atrasado", "deixar como atrasado", "deixe como atrasado"],
+    }
+    for new_status, terms in status_requests.items():
+        if any(term in normalized for term in terms):
+            if tx.empty:
+                return AIReply("Não encontrei lançamentos para atualizar.")
+            target = _find_transaction_target(tx, message)
+            if target is None:
+                return _ask_for_missing(
+                    f"Qual lançamento você quer marcar como {new_status}?",
+                    message,
+                    "update_transaction_status",
+                )
+            update_transaction_status(user_id, str(target["id"]), new_status)
+            text = f"✅ **{target['descricao']}** foi marcado como **{new_status}**."
+            log_ai_action(
+                user_id,
+                message,
+                "update_transaction_status",
+                {"transaction_id": str(target["id"]), "status": new_status},
+                "executed",
+                text,
+            )
+            return AIReply(text=text, executed=True)
+
+    # Edição completa de lançamentos existentes.
+    value_intent = any(term in normalized for term in [
+        "mudar o valor", "mude o valor", "alterar o valor", "altere o valor",
+        "trocar o valor", "troque o valor", "corrigir o valor", "corrija o valor"
+    ])
+    date_intent = any(term in normalized for term in [
+        "mudar a data", "mude a data", "alterar a data", "altere a data",
+        "trocar a data", "troque a data", "corrigir a data", "corrija a data"
+    ])
+    category_intent = any(term in normalized for term in [
+        "mudar a categoria", "mude a categoria", "alterar a categoria", "altere a categoria",
+        "trocar a categoria", "troque a categoria", "corrigir a categoria", "corrija a categoria"
+    ])
+    account_intent = any(term in normalized for term in [
+        "mudar a conta", "mude a conta", "alterar a conta", "altere a conta",
+        "trocar a conta", "troque a conta", "mover o lancamento para", "mova o lancamento para"
+    ])
+    description_intent = any(term in normalized for term in [
+        "mudar a descricao", "mude a descricao", "alterar a descricao", "altere a descricao",
+        "trocar a descricao", "troque a descricao", "corrigir a descricao", "corrija a descricao",
+        "renomear lancamento", "renomeie o lancamento"
+    ])
+    type_intent = any(term in normalized for term in [
+        "mudar o tipo", "mude o tipo", "alterar o tipo", "altere o tipo",
+        "trocar o tipo", "troque o tipo"
+    ])
+    generic_edit = any(term in normalized for term in [
+        "editar lancamento", "edite o lancamento", "alterar lancamento", "altere o lancamento",
+        "corrigir lancamento", "corrija o lancamento"
+    ])
+    edit_requested = generic_edit or value_intent or date_intent or category_intent or account_intent or description_intent or type_intent
+
+    # Termos de outros módulos têm precedência e não devem virar edição de lançamento.
+    other_module_request = any(term in normalized for term in [
+        "limite do cartao", "limite do cartão", "meta", "orcamento", "orçamento"
+    ])
+
+    if edit_requested and not other_module_request:
+        if tx.empty:
+            return AIReply("Não encontrei lançamentos para alterar.")
+
+        target = _find_transaction_target(tx, message)
+        if target is None:
+            return _ask_for_missing(
+                "Qual lançamento você quer alterar? Informe parte da descrição ou diga **último lançamento**.",
+                message,
+                "edit_transaction",
+            )
+
+        updates: dict[str, Any] = {}
+        changes: list[str] = []
+
+        if value_intent:
+            if amount is None:
+                return _ask_for_missing("Qual é o novo valor?", message, "edit_transaction")
+            updates["amount"] = amount
+            changes.append(f"valor → **{brl(amount)}**")
+
+        if date_intent:
+            new_date = _extract_explicit_date(message)
+            if new_date is None:
+                return _ask_for_missing("Qual é a nova data? Ex.: **15/09/2026**.", message, "edit_transaction")
+            updates["occurred_on"] = new_date
+            changes.append(f"data → **{new_date.strftime('%d/%m/%Y')}**")
+
+        if category_intent:
+            category = _find_explicit_category(categories, message)
+            if category is None:
+                return _ask_for_missing(
+                    "Qual é a nova categoria? Informe uma categoria já cadastrada.",
+                    message,
+                    "edit_transaction",
+                )
+            updates["category_id"] = str(category["id"])
+            changes.append(f"categoria → **{category['name']}**")
+
+        if account_intent:
+            account = _find_explicit_account(accounts, message)
+            if account is None:
+                return _ask_for_missing(
+                    "Para qual conta devo mover esse lançamento? Informe uma conta já cadastrada.",
+                    message,
+                    "edit_transaction",
+                )
+            updates["account_id"] = str(account["id"])
+            changes.append(f"conta → **{account['conta']}**")
+
+        if description_intent:
+            match = re.search(
+                r"(?:descri[cç][aã]o|renome(?:ar|ie)(?:\s+o)?\s+lan[cç]amento).*?(?:para|como)\s+(.+)$",
+                message,
+                flags=re.I,
+            )
+            if not match:
+                return _ask_for_missing("Qual é a nova descrição?", message, "edit_transaction")
+            new_description = match.group(1).strip(" .,:;-")
+            if not new_description:
+                return _ask_for_missing("Qual é a nova descrição?", message, "edit_transaction")
+            updates["description"] = new_description[:120]
+            changes.append(f"descrição → **{new_description[:120]}**")
+
+        if type_intent:
+            new_kind = None
+            if "receita" in normalized:
+                new_kind = "receita"
+            elif "despesa" in normalized:
+                new_kind = "despesa"
+            if new_kind is None:
+                return _ask_for_missing("O novo tipo é **receita** ou **despesa**?", message, "edit_transaction")
+            updates["kind"] = new_kind
+            changes.append(f"tipo → **{new_kind}**")
+
+        if generic_edit and not updates:
+            return _ask_for_missing(
+                "O que você quer alterar nesse lançamento: **valor, data, categoria, conta, descrição ou tipo**?",
+                message,
+                "edit_transaction",
+            )
+
+        update_transaction(user_id, str(target["id"]), **updates)
+        log_payload = {
+            key: value.isoformat() if isinstance(value, date) else value
+            for key, value in updates.items()
+        }
+        text = (
+            f"✅ Lançamento **{target['descricao']}** atualizado.\n\n"
+            + " · ".join(changes)
+        )
+        log_ai_action(
+            user_id,
+            message,
+            "update_transaction",
+            {"transaction_id": str(target["id"]), **log_payload},
+            "executed",
+            text,
+        )
         return AIReply(text=text, executed=True)
 
     # Transferência entre contas.

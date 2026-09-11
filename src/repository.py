@@ -23,6 +23,8 @@ DEFAULT_CATEGORIES = [
     {"name": "Outros", "kind": "ambos", "icon": "📌"},
 ]
 
+_UNSET = object()
+
 
 def _client():
     client = get_supabase()
@@ -416,6 +418,68 @@ def create_recurring_transaction(
             "is_active": True,
         }
     ).execute()
+
+
+def update_transaction(
+    user_id: str,
+    transaction_id: str,
+    *,
+    account_id: str | None = None,
+    category_id: str | None | object = _UNSET,
+    kind: str | None = None,
+    description: str | None = None,
+    amount: float | None = None,
+    occurred_on: date | None = None,
+) -> None:
+    """Atualiza somente os campos explicitamente informados de um lançamento.
+
+    O filtro por ``user_id`` mantém a edição dentro do mesmo escopo de RLS usado
+    pelo restante do módulo financeiro e impede que um ID isolado altere dados de
+    outro usuário.
+    """
+    payload: dict[str, Any] = {}
+
+    if account_id is not None:
+        account_id = str(account_id).strip()
+        if not account_id:
+            raise ValueError("Conta inválida para o lançamento.")
+        payload["account_id"] = account_id
+
+    if category_id is not _UNSET:
+        payload["category_id"] = category_id
+
+    if kind is not None:
+        kind = str(kind).strip().lower()
+        if kind not in {"receita", "despesa", "transferencia"}:
+            raise ValueError("Tipo de lançamento inválido.")
+        payload["kind"] = kind
+
+    if description is not None:
+        description = str(description).strip()
+        if not description:
+            raise ValueError("A descrição não pode ficar vazia.")
+        payload["description"] = description
+
+    if amount is not None:
+        amount = float(amount)
+        if amount <= 0:
+            raise ValueError("O valor do lançamento deve ser maior que zero.")
+        payload["amount"] = amount
+
+    if occurred_on is not None:
+        payload["occurred_on"] = occurred_on.isoformat()
+
+    if not payload:
+        return
+
+    (
+        _client()
+        .table("transactions")
+        .update(payload)
+        .eq("id", transaction_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
 
 
 def update_transaction_status(user_id: str, transaction_id: str, status: str) -> None:
