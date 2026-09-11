@@ -13,6 +13,7 @@ def _install_ai_training_runtime() -> None:
 def _install_theme_mode_runtime() -> None:
     """Acopla tema claro/escuro/automático à identidade visual já existente."""
     from . import theme as _theme
+    from .theme_accessibility import inject_accessibility_css
     from .theme_modes import apply_display_mode, render_appearance_selector
 
     if getattr(_theme, "_renova_theme_modes_installed", False):
@@ -24,6 +25,7 @@ def _install_theme_mode_runtime() -> None:
     def apply_theme_with_mode() -> None:
         original_apply_theme()
         apply_display_mode()
+        inject_accessibility_css()
 
     def brand_block_with_appearance() -> None:
         original_brand_block()
