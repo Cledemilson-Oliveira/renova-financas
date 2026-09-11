@@ -17,39 +17,84 @@ def _secret(name: str) -> Optional[str]:
     return os.getenv(name)
 
 
-@st.cache_resource(show_spinner=False)
-def get_supabase() -> Optional[Client]:
-    """Create a Supabase client using only the publishable key.
-
-    The app must never receive a service-role/secret key. Authorization is
-    enforced by Supabase Auth + RLS policies in the database.
-    """
+def is_configured() -> bool:
     url = _secret("SUPABASE_URL")
     key = _secret("SUPABASE_PUBLISHABLE_KEY") or _secret("SUPABASE_KEY")
-    if not url or not key:
+    return bool(url and key)
+
+
+def get_supabase() -> Optional[Client]:
+    """Return one Supabase client per Streamlit user session.
+
+    Important: authenticated Supabase clients must not be cached globally with
+    st.cache_resource, because auth state is mutable. Keeping the client in
+    st.session_state prevents one visitor's auth session from being reused by
+    another visitor in the same Streamlit process.
+    """
+    if not is_configured():
         return None
-    return create_client(url, key)
 
+    if "supabase_client" not in st.session_state:
+        url = _secret("SUPABASE_URL")
+        key = _secret("SUPABASE_PUBLISHABLE_KEY") or _secret("SUPABASE_KEY")
+        st.session_state.supabase_client = create_client(str(url), str(key))
 
-def is_configured() -> bool:
-    return get_supabase() is not None
+    return st.session_state.supabase_client
 
 
 def sign_in(email: str, password: str):
     client = get_supabase()
     if client is None:
         raise RuntimeError("Supabase ainda não configurado.")
-    return client.auth.sign_in_with_password({"email": email, "password": password})
+
+    response = client.auth.sign_in_with_password(
+        {"email": email.strip().lower(), "password": password}
+    )
+    st.session_state.auth_user = response.user
+    st.session_state.auth_session = response.session
+    return response
 
 
-def sign_up(email: str, password: str):
+def sign_up(email: str, password: str, full_name: str = ""):
     client = get_supabase()
     if client is None:
         raise RuntimeError("Supabase ainda não configurado.")
-    return client.auth.sign_up({"email": email, "password": password})
+
+    payload = {
+        "email": email.strip().lower(),
+        "password": password,
+    }
+    if full_name.strip():
+        payload["options"] = {"data": {"full_name": full_name.strip()}}
+
+    response = client.auth.sign_up(payload)
+    if response.session is not None:
+        st.session_state.auth_user = response.user
+        st.session_state.auth_session = response.session
+    return response
+
+
+def current_user():
+    return st.session_state.get("auth_user")
+
+
+def is_authenticated() -> bool:
+    user = current_user()
+    return bool(user and getattr(user, "id", None))
 
 
 def sign_out() -> None:
     client = get_supabase()
     if client is not None:
-        client.auth.sign_out()
+        try:
+            client.auth.sign_out()
+        except Exception:
+            pass
+
+    for key in (
+        "auth_user",
+        "auth_session",
+        "supabase_client",
+        "bootstrap_user_id",
+    ):
+        st.session_state.pop(key, None)
