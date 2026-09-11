@@ -37,6 +37,7 @@ from src.supabase_client import (
 )
 from src.theme import apply_renova_theme, auto_collapse_sidebar, brand_block, floating_ai_button
 from src.ai_finance import confirm_pending_action, process_message
+from src.urgencies import analyze_financial_urgencies, urgency_summary
 
 
 st.set_page_config(
@@ -47,7 +48,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.11.3"
+APP_BUILD = "2026.09.11.4"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -340,6 +341,62 @@ def _create_or_get_category(kind: str, name: str) -> tuple[str, str]:
     return clean, clean
 
 
+def render_urgency_center() -> None:
+    alerts = analyze_financial_urgencies(
+        transactions=st.session_state.get("transactions"),
+        accounts=st.session_state.get("accounts"),
+        budgets=st.session_state.get("budgets"),
+        cards=st.session_state.get("cards"),
+    )
+    summary = urgency_summary(alerts)
+
+    st.markdown("### 🧭 Central Inteligente de Urgências")
+    st.caption(
+        "Análise automática dos seus dados para destacar o que merece atenção primeiro. "
+        "Os alertas são recalculados sempre que os dados financeiros mudam."
+    )
+
+    if not alerts:
+        st.success("✅ Nenhuma urgência financeira relevante detectada neste momento.")
+        return
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Urgências", summary["total"])
+    with c2:
+        st.metric("Críticas", summary["critica"])
+    with c3:
+        st.metric("Altas", summary["alta"])
+    with c4:
+        st.metric("Médias", summary["media"])
+
+    for index, alert in enumerate(alerts[:6]):
+        severity = str(alert.get("severity") or "info")
+        title = f"{alert.get('icon', '🔎')} {alert.get('severity_label', 'INFO')} • {alert.get('title', 'Alerta financeiro')}"
+        message = str(alert.get("message") or "")
+        action = str(alert.get("action") or "")
+
+        if severity == "critica":
+            st.error(f"**{title}**\n\n{message}\n\n**Ação recomendada:** {action}")
+        elif severity == "alta":
+            st.warning(f"**{title}**\n\n{message}\n\n**Ação recomendada:** {action}")
+        else:
+            st.info(f"**{title}**\n\n{message}\n\n**Ação recomendada:** {action}")
+
+    if len(alerts) > 6:
+        st.caption(f"Mais {len(alerts) - 6} alerta(s) de menor prioridade foram agrupados para manter o painel objetivo.")
+
+    action_cols = st.columns(2)
+    with action_cols[0]:
+        if st.button("📋 Revisar lançamentos", key="urgencies_open_transactions", use_container_width=True):
+            st.session_state.nav_page = "Lançamentos"
+            st.rerun()
+    with action_cols[1]:
+        if st.button("🤖 Analisar com RENOVA IA", key="urgencies_open_ai", use_container_width=True):
+            st.session_state.nav_page = "RENOVA IA" if has_renova_ai_access() else "Assinar RENOVA IA"
+            st.rerun()
+
+
 def render_dashboard() -> None:
     hero(
         "Sua vida financeira, <strong>em um só lugar</strong>",
@@ -360,6 +417,9 @@ def render_dashboard() -> None:
         metric_card("Resultado", brl(summary["resultado"]), f"Economia: {summary['taxa_economia']:.1f}%")
 
     st.write("")
+    render_urgency_center()
+    st.write("")
+
     left, right = st.columns([1.45, 1])
     with left:
         st.subheader("Evolução financeira")
