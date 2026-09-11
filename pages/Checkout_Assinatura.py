@@ -54,12 +54,13 @@ except Exception:
 
 plan = get_ai_plan() or {}
 price = float(plan.get("price") or 9.90)
+price_label = f"{price:.2f}".replace(".", ",")
 
 st.markdown(
     f"""
     <section class="ai-subscribe-gate">
       <div class="sales-eyebrow">ASSINATURA MENSAL</div>
-      <h2>RENOVA IA Personalizada • <strong>R$ {price:.2f}/mês</strong></h2>
+      <h2>RENOVA IA Personalizada • <strong>R$ {price_label}/mês</strong></h2>
       <p>
         A cobrança é processada pelo Mercado Pago. O acesso personalizado só é
         liberado depois da confirmação recebida pelo webhook do provedor.
@@ -71,7 +72,7 @@ st.markdown(
         <span>✓ Liberação automática após confirmação</span>
       </div>
     </section>
-    """.replace(".", ",", 1),
+    """,
     unsafe_allow_html=True,
 )
 
