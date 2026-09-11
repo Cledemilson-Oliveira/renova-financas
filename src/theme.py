@@ -319,6 +319,48 @@ div[data-testid="stNumberInput"] input{
   box-shadow:0 0 15px rgba(0,174,239,.20)!important;
 }
 
+/* LANDING / PÁGINA DE VENDAS */
+.sales-hero,.sales-section,.ai-sales,.pricing-section,.sales-final{max-width:1180px;margin:0 auto 26px}
+.sales-hero{
+  padding:64px 38px 52px;text-align:center;border:1px solid rgba(255,215,90,.32);border-radius:28px;
+  background:radial-gradient(circle at 50% 0%,rgba(0,174,239,.22),transparent 42%),linear-gradient(135deg,#04131F,#061F35 52%,#02070D);
+  box-shadow:0 28px 70px rgba(0,0,0,.42),0 0 36px rgba(0,174,239,.08)
+}
+.sales-badge,.sales-eyebrow{color:#FFE477;font-size:.67rem;font-weight:950;letter-spacing:.14em}
+.sales-hero h1{font-size:clamp(2.2rem,6vw,4.6rem)!important;line-height:1.02!important;margin:18px 0!important}
+.sales-hero h1 strong,.sales-section h2 strong,.ai-sales h2 strong,.pricing-section h2 strong,.sales-final h2 strong{color:#FFD75A!important}
+.sales-lead{max-width:820px;margin:0 auto!important;font-size:1.08rem!important;line-height:1.7!important}
+.sales-cta-row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin:28px 0 18px}
+.sales-cta{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;border-radius:12px;text-decoration:none!important;font-weight:950}
+.sales-cta.primary{background:linear-gradient(110deg,#C99308,#FFD75A,#FFF0A3,#D8A716);color:#06111B!important;border:1px solid #FFE57B}
+.sales-cta.secondary{background:#071C2D;color:#EAF7FF!important;border:1px solid rgba(0,174,239,.42)}
+.sales-cta.full{width:100%;box-sizing:border-box;margin-top:16px}
+.sales-cta.static{cursor:default}
+.sales-proof{color:#9FC4D8;font-size:.78rem;font-weight:800}
+.sales-section,.pricing-section,.sales-final{padding:42px 26px}
+.sales-section h2,.ai-sales h2,.pricing-section h2,.sales-final h2{font-size:clamp(1.8rem,4vw,2.8rem)!important;margin:10px 0 24px!important}
+.sales-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.sales-card,.price-card{
+  border:1px solid rgba(0,174,239,.20);border-radius:20px;padding:22px;
+  background:linear-gradient(145deg,rgba(7,24,38,.97),rgba(3,10,16,.99));box-shadow:0 14px 34px rgba(0,0,0,.28)
+}
+.sales-card span{font-size:1.6rem}.sales-card h3{font-size:1rem!important;margin:12px 0 7px}.sales-card p{font-size:.83rem!important;line-height:1.55}
+.ai-sales{
+  display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:center;padding:38px;
+  border:1px solid rgba(0,174,239,.26);border-radius:25px;background:radial-gradient(circle at 90% 0%,rgba(0,174,239,.14),transparent 34%),#04111C
+}
+.ai-sales p{line-height:1.7}.ai-chip{display:inline-block;margin-top:10px;padding:8px 11px;border-radius:999px;background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.25);color:#8EDFFF;font-size:.75rem;font-weight:900}
+.ai-demo{padding:18px;border-radius:18px;background:#020A11;border:1px solid rgba(255,215,90,.20)}
+.bubble{max-width:88%;padding:12px 14px;border-radius:15px;margin:9px 0;font-size:.82rem;line-height:1.5}
+.bubble.user{margin-left:auto;background:#092C48;color:#EAF7FF}.bubble.bot{background:#101B20;color:#FFE477;border:1px solid rgba(255,215,90,.14)}
+.pricing-section{text-align:center}.pricing-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:820px;margin:0 auto;text-align:left}
+.price-card.featured{position:relative;border-color:rgba(255,215,90,.62);box-shadow:0 18px 45px rgba(0,0,0,.35),0 0 25px rgba(255,215,90,.08)}
+.popular{position:absolute;right:15px;top:14px;color:#FFD75A;font-size:.58rem;font-weight:950;letter-spacing:.12em}
+.plan{color:#8EDFFF;font-size:.68rem;font-weight:950;letter-spacing:.13em}.price{font-size:2.1rem;font-weight:950;color:#fff;margin:8px 0}.price small{font-size:.75rem;color:#AFC3D2}
+.price-card ul{padding:0;list-style:none;color:#C7D8E3;line-height:2;font-size:.82rem}.pricing-note{font-size:.72rem!important;margin-top:18px!important}
+.sales-final{text-align:center;border-top:1px solid rgba(0,174,239,.15)}
+.auth-anchor{scroll-margin-top:30px}
+
 /* AUTH / LOGIN */
 body:has(form#login_form) [data-testid="stMainBlockContainer"],
 body:has(input[aria-label="E-mail"]) [data-testid="stMainBlockContainer"]{
@@ -386,6 +428,14 @@ body:has(input[aria-label="Senha"]) [data-testid="stForm"]{
 .renova-ai-fab .copy strong{color:#FFE477!important;font-size:.84rem}
 
 @media(max-width:768px){
+  .sales-hero{padding:42px 18px 34px;border-radius:20px}
+  .sales-hero h1{font-size:2.45rem!important}
+  .sales-lead{font-size:.94rem!important}
+  .sales-grid{grid-template-columns:1fr 1fr}
+  .ai-sales{grid-template-columns:1fr;padding:24px 18px}
+  .pricing-grid{grid-template-columns:1fr}
+  .sales-section,.pricing-section,.sales-final{padding:30px 6px}
+
   .stApp{background-size:32px 32px,32px 32px,auto,auto,auto,auto!important}
   [data-testid="stMainBlockContainer"]{padding:1rem 1rem 4.5rem!important}
   .renova-hero{padding:24px 18px 20px;border-radius:18px}
