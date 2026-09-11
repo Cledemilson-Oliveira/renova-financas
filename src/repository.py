@@ -110,7 +110,7 @@ def fetch_financial_data(user_id: str) -> dict[str, pd.DataFrame]:
     transactions_raw = (
         client.table("transactions")
         .select(
-            "id,account_id,destination_account_id,category_id,kind,description,amount,occurred_on,status,notes"
+            "id,account_id,destination_account_id,category_id,kind,description,amount,occurred_on,due_date,status,notes"
         )
         .eq("user_id", user_id)
         .order("occurred_on", desc=True)
@@ -159,16 +159,22 @@ def fetch_financial_data(user_id: str) -> dict[str, pd.DataFrame]:
     category_names = {row["id"]: row["name"] for row in categories_raw}
 
     transactions = []
+    today = date.today()
     for row in transactions_raw:
         kind_map = {
             "receita": "Receita",
             "despesa": "Despesa",
             "transferencia": "Transferência",
         }
+        due_date = pd.to_datetime(row.get("due_date")).date() if row.get("due_date") else None
+        display_status = str(row["status"])
+        if display_status == "previsto" and due_date and due_date < today:
+            display_status = "atrasado"
         transactions.append(
             {
                 "id": row["id"],
                 "data": pd.to_datetime(row["occurred_on"]).date(),
+                "vencimento": due_date,
                 "tipo": kind_map.get(row["kind"], row["kind"].title()),
                 "categoria": category_names.get(row.get("category_id"), "Sem categoria"),
                 "categoria_id": row.get("category_id"),
@@ -177,7 +183,8 @@ def fetch_financial_data(user_id: str) -> dict[str, pd.DataFrame]:
                 "conta": account_names.get(row["account_id"], "Conta"),
                 "conta_id": row["account_id"],
                 "destino_id": row.get("destination_account_id"),
-                "status": row["status"],
+                "status": display_status,
+                "status_db": row["status"],
             }
         )
     tx_df = pd.DataFrame(transactions)
@@ -186,6 +193,7 @@ def fetch_financial_data(user_id: str) -> dict[str, pd.DataFrame]:
             columns=[
                 "id",
                 "data",
+                "vencimento",
                 "tipo",
                 "categoria",
                 "categoria_id",
@@ -195,6 +203,7 @@ def fetch_financial_data(user_id: str) -> dict[str, pd.DataFrame]:
                 "conta_id",
                 "destino_id",
                 "status",
+                "status_db",
             ]
         )
 
@@ -308,7 +317,13 @@ def create_transaction(
     description: str,
     amount: float,
     occurred_on: date,
+    *,
+    due_date: date | None = None,
+    status: str = "pago",
 ) -> None:
+    allowed_status = {"previsto", "pago", "atrasado", "cancelado"}
+    if status not in allowed_status:
+        raise ValueError("Status de lançamento inválido.")
     payload = {
         "user_id": user_id,
         "account_id": account_id,
@@ -317,8 +332,10 @@ def create_transaction(
         "description": description.strip(),
         "amount": float(amount),
         "occurred_on": occurred_on.isoformat(),
-        "status": "pago",
+        "status": status,
     }
+    if due_date is not None:
+        payload["due_date"] = due_date.isoformat()
     _client().table("transactions").insert(payload).execute()
 
 
@@ -430,13 +447,10 @@ def update_transaction(
     description: str | None = None,
     amount: float | None = None,
     occurred_on: date | None = None,
+    due_date: date | None | object = _UNSET,
+    status: str | None = None,
 ) -> None:
-    """Atualiza somente os campos explicitamente informados de um lançamento.
-
-    O filtro por ``user_id`` mantém a edição dentro do mesmo escopo de RLS usado
-    pelo restante do módulo financeiro e impede que um ID isolado altere dados de
-    outro usuário.
-    """
+    """Atualiza somente os campos explicitamente informados de um lançamento."""
     payload: dict[str, Any] = {}
 
     if account_id is not None:
@@ -469,6 +483,15 @@ def update_transaction(
     if occurred_on is not None:
         payload["occurred_on"] = occurred_on.isoformat()
 
+    if due_date is not _UNSET:
+        payload["due_date"] = due_date.isoformat() if isinstance(due_date, date) else None
+
+    if status is not None:
+        allowed_status = {"previsto", "pago", "atrasado", "cancelado"}
+        if status not in allowed_status:
+            raise ValueError("Status de lançamento inválido.")
+        payload["status"] = status
+
     if not payload:
         return
 
@@ -476,6 +499,17 @@ def update_transaction(
         _client()
         .table("transactions")
         .update(payload)
+        .eq("id", transaction_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+
+def delete_transaction(user_id: str, transaction_id: str) -> None:
+    (
+        _client()
+        .table("transactions")
+        .delete()
         .eq("id", transaction_id)
         .eq("user_id", user_id)
         .execute()
