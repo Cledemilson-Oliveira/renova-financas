@@ -10,4 +10,29 @@ def _install_ai_training_runtime() -> None:
     install_training_runtime(_ai_finance, _ai_training)
 
 
+def _install_theme_mode_runtime() -> None:
+    """Acopla tema claro/escuro/automático à identidade visual já existente."""
+    from . import theme as _theme
+    from .theme_modes import apply_display_mode, render_appearance_selector
+
+    if getattr(_theme, "_renova_theme_modes_installed", False):
+        return
+
+    original_apply_theme = _theme.apply_renova_theme
+    original_brand_block = _theme.brand_block
+
+    def apply_theme_with_mode() -> None:
+        original_apply_theme()
+        apply_display_mode()
+
+    def brand_block_with_appearance() -> None:
+        original_brand_block()
+        render_appearance_selector()
+
+    _theme.apply_renova_theme = apply_theme_with_mode
+    _theme.brand_block = brand_block_with_appearance
+    _theme._renova_theme_modes_installed = True
+
+
 _install_ai_training_runtime()
+_install_theme_mode_runtime()
