@@ -613,3 +613,51 @@ def deactivate_ai_preference(user_id: str, preference_key: str) -> None:
         .eq("preference_key", preference_key)
         .execute()
     )
+
+
+def get_ai_plan(plan_code: str = "renova_ia") -> dict[str, Any] | None:
+    response = (
+        _client()
+        .table("ai_subscription_plans")
+        .select("code,name,price,currency,billing_cycle,provider,checkout_url,is_active")
+        .eq("code", plan_code)
+        .eq("is_active", True)
+        .limit(1)
+        .execute()
+    )
+    rows = response.data or []
+    return rows[0] if rows else None
+
+
+def get_ai_subscription(user_id: str, plan_code: str = "renova_ia") -> dict[str, Any] | None:
+    response = (
+        _client()
+        .table("ai_subscriptions")
+        .select(
+            "id,user_id,plan_code,status,provider,provider_subscription_id,"
+            "checkout_url,current_period_start,current_period_end,started_at,"
+            "cancelled_at,last_payment_at,metadata,created_at,updated_at"
+        )
+        .eq("user_id", user_id)
+        .eq("plan_code", plan_code)
+        .limit(1)
+        .execute()
+    )
+    rows = response.data or []
+    return rows[0] if rows else None
+
+
+def has_active_ai_subscription(user_id: str, plan_code: str = "renova_ia") -> bool:
+    subscription = get_ai_subscription(user_id, plan_code)
+    if not subscription or subscription.get("status") != "active":
+        return False
+
+    period_end = subscription.get("current_period_end")
+    if period_end:
+        try:
+            parsed = pd.to_datetime(period_end, utc=True)
+            if parsed.to_pydatetime() <= datetime.now(timezone.utc):
+                return False
+        except Exception:
+            pass
+    return True
