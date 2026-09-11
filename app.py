@@ -32,6 +32,7 @@ from src.supabase_client import (
     sign_up,
 )
 from src.theme import apply_renova_theme, brand_block
+from src.ai_finance import confirm_pending_action, process_message
 
 
 st.set_page_config(
@@ -506,13 +507,23 @@ def render_reports() -> None:
 def render_ai() -> None:
     hero(
         "RENOVA IA <strong>Financeira</strong>",
-        "Leitura automática dos números para destacar riscos, urgências e oportunidades.",
+        "Converse com sua gestão financeira. A IA analisa e executa ações quando você pedir.",
     )
+
     tx = st.session_state.transactions.copy()
     summary = financial_summary(tx, st.session_state.accounts)
     budgets = st.session_state.budgets.copy()
-    alerts = []
 
+    st.markdown("### Visão inteligente de hoje")
+    alert_cols = st.columns(3)
+    with alert_cols[0]:
+        metric_card("Saldo", brl(summary["saldo"]), "Saldo consolidado")
+    with alert_cols[1]:
+        metric_card("Resultado", brl(summary["resultado"]), "Receitas menos despesas")
+    with alert_cols[2]:
+        metric_card("Economia", f"{summary['taxa_economia']:.1f}%", "Taxa atual")
+
+    alerts = []
     if summary["resultado"] < 0:
         alerts.append(("🔴", "Resultado negativo", f"As despesas superaram as receitas em {brl(abs(summary['resultado']))}."))
     if summary["taxa_economia"] < 10 and summary["receitas"] > 0:
@@ -527,13 +538,98 @@ def render_ai() -> None:
     if not alerts:
         alerts.append(("🟢", "Situação controlada", "Nenhuma urgência automática foi detectada nos dados atuais."))
 
-    for icon, title, text in alerts:
-        st.markdown(f"### {icon} {title}")
-        st.write(text)
-    st.info(
-        "A próxima etapa conecta conversa com IA e ações financeiras assistidas. "
-        "A IA não executará movimentações sem pedido explícito do usuário."
+    with st.expander("Alertas automáticos", expanded=False):
+        for icon, title, text in alerts:
+            st.markdown(f"**{icon} {title}**")
+            st.write(text)
+
+    st.markdown("### Converse com a RENOVA IA")
+    st.caption(
+        "Exemplos: “Gastei R$ 85 no mercado hoje”, “Recebi R$ 1.500 de um freelance”, "
+        "“Crie uma meta de R$ 5.000”, “Defina orçamento de R$ 600 para alimentação” "
+        "ou “Faça um resumo das minhas finanças”."
     )
+
+    if not REAL_MODE:
+        st.warning("O Modo Execução precisa do Supabase conectado para registrar ações reais.")
+        return
+
+    if "ai_messages" not in st.session_state:
+        st.session_state.ai_messages = [
+            {
+                "role": "assistant",
+                "content": (
+                    "Olá! Eu sou a **RENOVA IA Financeira**. Posso analisar seus números e também "
+                    "registrar receitas, despesas, metas, orçamentos e lançamentos recorrentes pelo chat."
+                ),
+            }
+        ]
+
+    for message in st.session_state.ai_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    pending = st.session_state.get("ai_pending_action")
+    if pending:
+        st.warning("Existe uma ação sensível aguardando confirmação. Digite **CONFIRMAR** para executar ou **CANCELAR** para desistir.")
+
+    prompt = st.chat_input("Digite seu comando financeiro...")
+    if not prompt:
+        return
+
+    st.session_state.ai_messages.append({"role": "user", "content": prompt})
+    normalized = prompt.strip().upper()
+
+    try:
+        user_id = str(current_user().id)
+
+        if pending and normalized == "CONFIRMAR":
+            result = confirm_pending_action(
+                user_id,
+                str(st.session_state.get("ai_pending_command") or ""),
+                pending,
+            )
+            st.session_state.pop("ai_pending_action", None)
+            st.session_state.pop("ai_pending_command", None)
+        elif pending and normalized == "CANCELAR":
+            result_text = "✅ A ação sensível foi cancelada e nenhuma alteração foi feita."
+            st.session_state.pop("ai_pending_action", None)
+            st.session_state.pop("ai_pending_command", None)
+            st.session_state.ai_messages.append({"role": "assistant", "content": result_text})
+            st.rerun()
+        elif pending:
+            result_text = "Há uma ação sensível pendente. Digite **CONFIRMAR** ou **CANCELAR** antes de enviar outro comando."
+            st.session_state.ai_messages.append({"role": "assistant", "content": result_text})
+            st.rerun()
+        else:
+            bundle = {
+                "transactions": st.session_state.transactions,
+                "accounts": st.session_state.accounts,
+                "cards": st.session_state.cards,
+                "budgets": st.session_state.budgets,
+                "categories": st.session_state.categories,
+                "goals": st.session_state.goals,
+            }
+            result = process_message(user_id, prompt, bundle)
+            if result.pending_confirmation:
+                st.session_state.ai_pending_action = result.pending_confirmation
+                st.session_state.ai_pending_command = prompt
+
+        st.session_state.ai_messages.append({"role": "assistant", "content": result.text})
+        if result.executed:
+            refreshed = fetch_financial_data(user_id)
+            for key, value in refreshed.items():
+                st.session_state[key] = value
+        st.rerun()
+    except Exception as exc:
+        st.session_state.ai_messages.append(
+            {
+                "role": "assistant",
+                "content": "Não consegui executar esse comando agora. Nenhuma ação parcial foi considerada concluída.",
+            }
+        )
+        st.session_state.ai_last_error = str(exc)
+        st.rerun()
 
 
 with st.sidebar:
