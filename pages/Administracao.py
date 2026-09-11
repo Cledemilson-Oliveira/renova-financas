@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from src.access import ROLE_LABELS, STATUS_LABELS, get_current_access, update_user_access
+from src.global_ai_modal import render_global_ai_assistant
 from src.supabase_client import current_user, is_authenticated, is_configured, sign_out
 from src.theme import apply_renova_theme, brand_block
 from src.user_admin import (
@@ -52,6 +53,8 @@ with st.sidebar:
     if st.button("Sair", use_container_width=True):
         sign_out()
         st.switch_page("app.py")
+
+render_global_ai_assistant(user_id)
 
 st.markdown(
     """
