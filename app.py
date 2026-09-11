@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from src.access import is_owner, list_user_access
 from src.data import (
     CATEGORIES,
     brl,
@@ -205,16 +206,24 @@ def render_auth() -> None:
     )
 
 
+def active_user_id() -> str:
+    user = current_user()
+    if not user:
+        return ""
+    return str(st.session_state.get("active_financial_user_id") or user.id)
+
+
 def load_data() -> None:
     if REAL_MODE:
         user = current_user()
         if not user:
             return
-        user_id = str(user.id)
-        if st.session_state.get("bootstrap_user_id") != user_id:
+        session_user_id = str(user.id)
+        target_user_id = active_user_id()
+        if st.session_state.get("bootstrap_user_id") != session_user_id:
             bootstrap_user(user)
-            st.session_state.bootstrap_user_id = user_id
-        bundle = fetch_financial_data(user_id)
+            st.session_state.bootstrap_user_id = session_user_id
+        bundle = fetch_financial_data(target_user_id)
         for key, value in bundle.items():
             st.session_state[key] = value
     else:
@@ -235,6 +244,31 @@ def load_data() -> None:
 if REAL_MODE and not is_authenticated():
     render_auth()
     st.stop()
+
+if REAL_MODE:
+    session_user = current_user()
+    session_user_id = str(session_user.id) if session_user else ""
+    st.session_state.active_financial_user_id = session_user_id
+
+    try:
+        if session_user_id and is_owner(session_user_id):
+            owner_users = list_user_access()
+            active_users = [row for row in owner_users if row.get("status") == "ativo"]
+            owner_options = {
+                f"{row.get('email', row.get('user_id'))} • {row.get('role', 'usuario')}": str(row.get("user_id"))
+                for row in active_users
+            }
+            if owner_options:
+                with st.sidebar:
+                    st.caption("MODO DONO • ACESSO GLOBAL")
+                    selected_owner_user = st.selectbox(
+                        "Gerenciar dados de",
+                        list(owner_options.keys()),
+                        key="owner_global_target",
+                    )
+                st.session_state.active_financial_user_id = owner_options[selected_owner_user]
+    except Exception:
+        st.session_state.active_financial_user_id = session_user_id
 
 try:
     load_data()
@@ -364,7 +398,7 @@ def render_transactions() -> None:
                     elif REAL_MODE:
                         try:
                             create_transaction(
-                                str(current_user().id),
+                                active_user_id(),
                                 accounts_map[account_label],
                                 categories_map.get(category_label) if category_label else None,
                                 kind_db,
@@ -420,7 +454,7 @@ def render_accounts() -> None:
             if submitted and name.strip():
                 if REAL_MODE:
                     try:
-                        create_account(str(current_user().id), name, account_type, initial_balance)
+                        create_account(active_user_id(), name, account_type, initial_balance)
                         st.rerun()
                     except Exception:
                         st.error("Não foi possível criar a conta.")
@@ -461,7 +495,7 @@ def render_cards() -> None:
                 if REAL_MODE:
                     try:
                         create_card(
-                            str(current_user().id),
+                            active_user_id(),
                             name,
                             limit_value,
                             int(closing_day),
@@ -516,7 +550,7 @@ def render_budgets() -> None:
                     if REAL_MODE:
                         try:
                             upsert_budget(
-                                str(current_user().id),
+                                active_user_id(),
                                 expense_categories[category_label],
                                 date.today().replace(day=1),
                                 planned,
@@ -673,7 +707,7 @@ def render_ai() -> None:
     normalized = prompt.strip().upper()
 
     try:
-        user_id = str(current_user().id)
+        user_id = active_user_id()
 
         if pending and normalized == "CONFIRMAR":
             result = confirm_pending_action(
