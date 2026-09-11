@@ -19,7 +19,19 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q app.py src pages
       - name: Import modules
-        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.theme_modes, src.theme_accessibility, src.ai_free_training, src.ai_training_runtime, src.training_ingest, src.urgencies, src.ui.device, src.ui.mobile, src.ui.desktop, src.ui.runtime"
+        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.theme_modes, src.theme_accessibility, src.ai_free_training, src.ai_training_runtime, src.training_ingest, src.urgencies, src.user_admin, src.public_entry_runtime, src.ui.device, src.ui.mobile, src.ui.desktop, src.ui.runtime"
+      - name: Validate public URL and owner user management
+        run: |
+          python - <<'PY'
+          import src.supabase_client as auth
+          import src.user_admin as admin
+
+          assert auth.DEFAULT_PUBLIC_APP_URL == 'https://minhas-financas-renova.streamlit.app'
+          assert admin.normalize_phone('(14) 99999-9999') == '+5514999999999'
+          assert admin.normalize_phone('+55 14 99999-9999') == '+5514999999999'
+          assert 'wa.me/5514999999999' in admin.whatsapp_url('(14) 99999-9999', 'Cliente Teste')
+          assert admin.PLAN_CODE == 'renova_ia'
+          PY
       - name: Validate responsive UI architecture
         run: |
           python - <<'PY'

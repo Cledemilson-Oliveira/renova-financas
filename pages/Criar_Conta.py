@@ -16,7 +16,6 @@ st.set_page_config(
 )
 apply_renova_theme()
 
-# Cadastro é uma rota pública. A navegação interna só aparece depois do login.
 st.markdown(
     """
     <style>
@@ -35,6 +34,9 @@ st.markdown(
     .signup-plan h3{margin:.45rem 0 .55rem}
     .signup-plan p{font-size:.86rem;margin:0;color:#9DB6C4}
     .signup-plan strong{color:#FFE477}
+    .old-price{text-decoration:line-through;opacity:.65;font-size:.84rem}
+    .launch-price{font-size:1.45rem;font-weight:950;color:#FFE477;margin:.25rem 0}
+    .price-lock{font-size:.72rem!important;color:#BDEBFF!important;margin-top:.55rem!important}
     @media(max-width:700px){.signup-plan-grid{grid-template-columns:1fr}.signup-shell{text-align:left}}
     </style>
     """,
@@ -56,8 +58,7 @@ st.markdown(
       <h1>Crie sua conta grátis.<br><strong>Organize hoje. Decida melhor amanhã.</strong></h1>
       <p>
         Sua conta gratuita já inclui a IA Padrão para registrar receitas, despesas,
-        consultar números e analisar sua situação financeira. Se quiser, você pode
-        liberar depois o Treinamento Personalizado por R$ 9,90/mês.
+        acompanhar vencimentos, consultar números e analisar sua situação financeira.
       </p>
     </section>
     <section class="signup-plan-grid">
@@ -67,9 +68,12 @@ st.markdown(
         <p>Gestão financeira, lançamentos, vencimentos, consultas e análises essenciais.</p>
       </article>
       <article class="signup-plan featured">
-        <div class="tag">OPCIONAL • R$ 9,90/MÊS</div>
-        <h3>🧠 IA Personalizada</h3>
-        <p>Memória privada, regras próprias, preferências, PDFs, YouTube e treinamento exclusivo.</p>
+        <div class="tag">PREÇO DE LANÇAMENTO</div>
+        <h3>🧠 RENOVA IA Personal</h3>
+        <p><strong>Sua IA financeira que aprende seu jeito de cuidar do dinheiro.</strong></p>
+        <div class="old-price">Valor de referência: R$ 29,90/mês</div>
+        <div class="launch-price">R$ 9,90/mês</div>
+        <p class="price-lock">Quem assinar nessa condição mantém R$ 9,90/mês enquanto a assinatura permanecer ativa.</p>
       </article>
     </section>
     """,
@@ -78,20 +82,21 @@ st.markdown(
 
 if wants_premium:
     st.info(
-        "🧠 Você escolheu a IA Personalizada. Primeiro crie sua conta; se o cadastro gerar uma sessão imediata, "
-        "você seguirá direto para a assinatura. Se houver confirmação por e-mail, entre na conta depois de confirmar e escolha **Assinar RENOVA IA**."
+        "🧠 Você escolheu o **RENOVA IA Personal**. Primeiro crie sua conta. "
+        "Depois do acesso, você seguirá para a assinatura de lançamento por **R$ 9,90/mês**."
     )
 else:
     st.success("✅ O plano gratuito não exige cartão e já libera a IA Padrão RENOVA.")
 
 st.markdown("## Criar minha conta")
-st.caption("Preencha seus dados abaixo. Você poderá alterar o plano depois.")
+st.caption("Sem CPF. Pedimos apenas os dados necessários para acesso e contato.")
 
 with st.form("public_signup_form", clear_on_submit=False):
     c1, c2 = st.columns(2)
     with c1:
         full_name = st.text_input("Nome completo", placeholder="Seu nome")
         email = st.text_input("E-mail", placeholder="voce@email.com")
+        phone = st.text_input("Celular / WhatsApp", placeholder="(14) 99999-9999")
     with c2:
         password = st.text_input("Senha", type="password", placeholder="Mínimo de 8 caracteres")
         confirm = st.text_input("Confirmar senha", type="password", placeholder="Repita a senha")
@@ -102,11 +107,14 @@ with st.form("public_signup_form", clear_on_submit=False):
 if submitted:
     clean_name = " ".join(full_name.split()).strip()
     clean_email = email.strip().lower()
+    phone_digits = re.sub(r"\D", "", phone)
 
     if len(clean_name) < 2:
         st.error("Informe seu nome.")
     elif not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", clean_email):
         st.error("Informe um e-mail válido.")
+    elif len(phone_digits) not in {10, 11, 12, 13}:
+        st.error("Informe um celular/WhatsApp válido com DDD.")
     elif len(password) < 8:
         st.error("Use uma senha com pelo menos 8 caracteres.")
     elif password != confirm:
@@ -114,16 +122,14 @@ if submitted:
     elif not accepted:
         st.error("Confirme a criação da conta para continuar.")
     else:
+        normalized_phone = f"+{phone_digits}" if len(phone_digits) in {12, 13} else f"+55{phone_digits}"
         try:
             with st.spinner("Criando sua conta RENOVA Finanças..."):
-                response = sign_up(clean_email, password, clean_name)
+                response = sign_up(clean_email, password, clean_name, normalized_phone)
 
             if response.session is not None:
                 st.success("✅ Conta criada com sucesso.")
-                if wants_premium:
-                    st.session_state.nav_page = "Assinar RENOVA IA"
-                else:
-                    st.session_state.nav_page = "Dashboard"
+                st.session_state.nav_page = "Assinar RENOVA IA" if wants_premium else "Dashboard"
                 st.switch_page("app.py")
             else:
                 st.session_state.signup_email_pending = clean_email
@@ -144,6 +150,8 @@ if submitted:
                 st.error("A senha não atende aos requisitos de segurança. Use pelo menos 8 caracteres.")
             elif "email" in normalized and "invalid" in normalized:
                 st.error("O endereço de e-mail não é válido.")
+            elif "redirect" in normalized:
+                st.error("O cadastro está pronto, mas a nova URL pública ainda precisa ser autorizada no provedor de autenticação.")
             elif "signup" in normalized and "disabled" in normalized:
                 st.error("O cadastro está temporariamente indisponível. A configuração de novos usuários precisa ser revisada.")
             else:
@@ -154,4 +162,4 @@ left, right = st.columns(2)
 with left:
     st.page_link("app.py", label="← Já tenho uma conta", use_container_width=True)
 with right:
-    st.caption("Conta gratuita • IA Padrão incluída • Upgrade opcional por R$ 9,90/mês")
+    st.caption("Conta gratuita • IA Padrão incluída • RENOVA IA Personal opcional")
