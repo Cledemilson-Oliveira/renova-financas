@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from src.sidebar_runtime import inject_sidebar_runtime_css
-
 from .desktop import apply_desktop_styles, tune_plotly_desktop
+from .desktop_shell import inject_desktop_shell
 
 
 def apply_desktop_runtime() -> None:
-    """Ativa exclusivamente a camada visual e a navegação do desktop."""
+    """Ativa somente a camada visual e o shell do desktop."""
     apply_desktop_styles()
-    inject_sidebar_runtime_css()
+    inject_desktop_shell()
 
 
 def render_dataframe_desktop(
