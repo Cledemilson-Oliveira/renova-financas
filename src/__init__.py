@@ -34,19 +34,18 @@ def _install_recurring_ai_runtime() -> None:
 
 
 def _install_theme_mode_runtime() -> None:
-    """Acopla tema, layout responsivo e navegação no padrão do ERP RENOVA."""
+    """Acopla tema e seleciona um único runtime visual por dispositivo."""
     import streamlit as st
 
     from . import theme as _theme
     from .planning_nav_runtime import install_planning_navigation_runtime
     from .sidebar_runtime import (
         auto_collapse_sidebar_robust,
-        inject_sidebar_runtime_css,
         render_ecosystem_product_card,
     )
     from .theme_accessibility import inject_accessibility_css
     from .theme_modes import apply_display_mode, render_appearance_selector
-    from .ui import apply_device_ui, install_device_runtime
+    from .ui import apply_device_ui, install_device_runtime, is_mobile
 
     if getattr(_theme, "_renova_theme_modes_installed", False):
         return
@@ -56,13 +55,24 @@ def _install_theme_mode_runtime() -> None:
 
     original_apply_theme = _theme.apply_renova_theme
     original_brand_block = _theme.brand_block
+    original_mobile_navigation = getattr(_theme, "install_mobile_navigation", None)
+
+    # O tema-base ainda conhece a implementação histórica do menu mobile, mas
+    # ela só pode ser executada em um dispositivo móvel. No desktop, nem o
+    # iframe/script dessa navegação é criado.
+    if callable(original_mobile_navigation):
+        def install_mobile_navigation_for_device() -> None:
+            if is_mobile():
+                original_mobile_navigation()
+
+        _theme.install_mobile_navigation = install_mobile_navigation_for_device
 
     def apply_theme_with_mode() -> None:
         original_apply_theme()
         apply_display_mode()
         inject_accessibility_css()
+        # A partir daqui somente um runtime é carregado: mobile OU desktop.
         apply_device_ui()
-        inject_sidebar_runtime_css()
 
     def brand_block_with_appearance() -> None:
         # A identidade permanece no topo. Controles auxiliares ficam recolhidos
@@ -108,9 +118,8 @@ def _install_theme_mode_runtime() -> None:
     _theme.apply_renova_theme = apply_theme_with_mode
     _theme.brand_block = brand_block_with_appearance
 
-    # app.py chama esta função quando o usuário muda de área. Ela agora é um
-    # no-op: o desktop só abre/recolhe a sidebar por decisão explícita do usuário,
-    # como no ERP RENOVA, evitando fechamento sem botão de retorno.
+    # app.py mantém esta API por compatibilidade. O recolhimento desktop é
+    # controlado explicitamente pelo shell do desktop e nunca pelo mobile.
     _theme.auto_collapse_sidebar = auto_collapse_sidebar_robust
     _theme._renova_theme_modes_installed = True
 
