@@ -1,6 +1,13 @@
 """RENOVA Finanças application package."""
 
 
+def _install_public_entry_runtime() -> None:
+    """Conecta os CTAs públicos às rotas reais de cadastro."""
+    from .public_entry_runtime import install_public_entry_runtime
+
+    install_public_entry_runtime()
+
+
 def _install_ai_training_runtime() -> None:
     """Ativa a camada de memória personalizada da RENOVA IA ao carregar o pacote."""
     from . import ai_finance as _ai_finance
@@ -40,5 +47,6 @@ def _install_theme_mode_runtime() -> None:
     _theme._renova_theme_modes_installed = True
 
 
+_install_public_entry_runtime()
 _install_ai_training_runtime()
 _install_theme_mode_runtime()
