@@ -71,50 +71,138 @@ def metric_card(label: str, value: str, hint: str) -> None:
 
 
 def render_auth() -> None:
-    left, center, right = st.columns([1, 1.25, 1])
-    with center:
-        brand_block()
-        hero(
-            "Acesse o <strong>RENOVA Finanças</strong>",
-            "Seus dados financeiros ficam protegidos por autenticação e regras de acesso individuais.",
-        )
-        login_tab, signup_tab = st.tabs(["Entrar", "Criar conta"])
+    st.markdown(
+        """
+        <section class="sales-hero">
+          <div class="sales-badge">✦ RENOVA FINANÇAS • GESTÃO + INTELIGÊNCIA ARTIFICIAL</div>
+          <h1>Organize seu dinheiro hoje.<br><strong>Decida melhor amanhã.</strong></h1>
+          <p class="sales-lead">
+            Tenha contas, receitas, despesas, cartões, metas e orçamentos em um só lugar.
+            Comece gratuitamente e, quando quiser acelerar sua gestão, ative a RENOVA IA.
+          </p>
+          <div class="sales-cta-row">
+            <a href="#criar-conta" class="sales-cta primary">Criar minha conta grátis</a>
+            <a href="#acessar" class="sales-cta secondary">Já tenho uma conta</a>
+          </div>
+          <div class="sales-proof">✓ Sem custo para começar &nbsp; • &nbsp; ✓ Recursos essenciais gratuitos &nbsp; • &nbsp; ✓ Seus dados separados por usuário</div>
+        </section>
 
-        with login_tab:
-            with st.form("login_form"):
-                email = st.text_input("E-mail", key="login_email")
-                password = st.text_input("Senha", type="password", key="login_password")
-                submitted = st.form_submit_button("Entrar", use_container_width=True)
-                if submitted:
+        <section class="sales-section">
+          <div class="sales-eyebrow">CONTROLE FINANCEIRO SEM COMPLICAÇÃO</div>
+          <h2>Você não precisa de mais uma planilha.<br><strong>Precisa enxergar o que está acontecendo.</strong></h2>
+          <div class="sales-grid">
+            <article class="sales-card"><span>💰</span><h3>Receitas e despesas</h3><p>Registre e acompanhe cada movimentação em uma visão organizada.</p></article>
+            <article class="sales-card"><span>🏦</span><h3>Contas e cartões</h3><p>Centralize saldos, limites, faturas e vencimentos.</p></article>
+            <article class="sales-card"><span>🎯</span><h3>Metas e orçamentos</h3><p>Defina limites e acompanhe seu progresso financeiro.</p></article>
+            <article class="sales-card"><span>📊</span><h3>Análises visuais</h3><p>Transforme lançamentos em informações úteis para decidir melhor.</p></article>
+          </div>
+        </section>
+
+        <section class="ai-sales">
+          <div>
+            <div class="sales-eyebrow">ASSISTENTE FINANCEIRO IA</div>
+            <h2>Em vez de procurar funções,<br><strong>simplesmente peça.</strong></h2>
+            <p>
+              Diga “gastei R$ 85 no mercado”, “crie uma meta de R$ 5.000”,
+              “marque a energia como paga” ou “analise minhas finanças”.
+              A RENOVA IA entende o pedido e executa as ações disponíveis para sua conta.
+            </p>
+            <div class="ai-chip">🧠 Aprende suas preferências de uso</div>
+          </div>
+          <div class="ai-demo">
+            <div class="bubble user">Gastei R$ 85 no mercado hoje.</div>
+            <div class="bubble bot">🤖 Despesa registrada e categorizada. Seu painel já foi atualizado.</div>
+            <div class="bubble user">Quando eu disser pensão, use a categoria Família.</div>
+            <div class="bubble bot">🧠 Aprendi. Vou usar essa preferência nos próximos lançamentos.</div>
+          </div>
+        </section>
+
+        <section class="pricing-section">
+          <div class="sales-eyebrow">ESCOLHA COMO COMEÇAR</div>
+          <h2>Comece grátis. <strong>Ative a IA quando quiser.</strong></h2>
+          <div class="pricing-grid">
+            <article class="price-card">
+              <div class="plan">GRÁTIS</div>
+              <div class="price">R$ 0</div>
+              <p>Para organizar sua vida financeira e começar agora.</p>
+              <ul>
+                <li>✓ Dashboard financeiro</li><li>✓ Receitas e despesas</li>
+                <li>✓ Contas e cartões</li><li>✓ Orçamentos e análises</li>
+              </ul>
+              <a href="#criar-conta" class="sales-cta secondary full">Criar conta gratuita</a>
+            </article>
+            <article class="price-card featured">
+              <div class="popular">MAIS INTELIGENTE</div>
+              <div class="plan">RENOVA IA</div>
+              <div class="price">R$ 9,90 <small>/mês</small></div>
+              <p>Para administrar suas finanças conversando com a IA.</p>
+              <ul>
+                <li>✓ Tudo do plano gratuito</li><li>✓ Assistente Financeiro IA</li>
+                <li>✓ Modo Execução</li><li>✓ Memória de preferências</li>
+                <li>✓ Análises e comandos pelo chat</li>
+              </ul>
+              <div class="sales-cta primary full static">Crie sua conta e ative por R$ 9,90/mês</div>
+            </article>
+          </div>
+          <p class="pricing-note">A assinatura da IA é opcional. O usuário pode continuar utilizando os recursos gratuitos sem ativá-la.</p>
+        </section>
+
+        <div id="acessar" class="auth-anchor"></div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("## Acesse sua conta")
+    login_tab, signup_tab = st.tabs(["Entrar", "Criar conta grátis"])
+
+    with login_tab:
+        with st.form("login_form"):
+            email = st.text_input("E-mail", key="login_email")
+            password = st.text_input("Senha", type="password", key="login_password")
+            submitted = st.form_submit_button("Entrar no RENOVA Finanças", use_container_width=True)
+            if submitted:
+                try:
+                    sign_in(email, password)
+                    st.success("Login realizado.")
+                    st.rerun()
+                except Exception:
+                    st.error("Não foi possível entrar. Verifique e-mail e senha.")
+
+    with signup_tab:
+        st.markdown('<div id="criar-conta"></div>', unsafe_allow_html=True)
+        st.caption("Crie sua conta gratuita. A assinatura RENOVA IA é opcional.")
+        with st.form("signup_form"):
+            full_name = st.text_input("Nome")
+            email = st.text_input("E-mail", key="signup_email")
+            password = st.text_input("Senha", type="password", key="signup_password")
+            confirm = st.text_input("Confirmar senha", type="password")
+            submitted = st.form_submit_button("Criar minha conta grátis", use_container_width=True)
+            if submitted:
+                if len(password) < 8:
+                    st.error("Use uma senha com pelo menos 8 caracteres.")
+                elif password != confirm:
+                    st.error("As senhas não conferem.")
+                else:
                     try:
-                        sign_in(email, password)
-                        st.success("Login realizado.")
-                        st.rerun()
+                        response = sign_up(email, password, full_name)
+                        if response.session is None:
+                            st.success("Conta criada. Confirme o e-mail para liberar o acesso.")
+                        else:
+                            st.success("Conta criada e autenticada.")
+                            st.rerun()
                     except Exception:
-                        st.error("Não foi possível entrar. Verifique e-mail e senha.")
+                        st.error("Não foi possível criar a conta. Confira os dados e tente novamente.")
 
-        with signup_tab:
-            with st.form("signup_form"):
-                full_name = st.text_input("Nome")
-                email = st.text_input("E-mail", key="signup_email")
-                password = st.text_input("Senha", type="password", key="signup_password")
-                confirm = st.text_input("Confirmar senha", type="password")
-                submitted = st.form_submit_button("Criar conta", use_container_width=True)
-                if submitted:
-                    if len(password) < 8:
-                        st.error("Use uma senha com pelo menos 8 caracteres.")
-                    elif password != confirm:
-                        st.error("As senhas não conferem.")
-                    else:
-                        try:
-                            response = sign_up(email, password, full_name)
-                            if response.session is None:
-                                st.success("Conta criada. Confirme o e-mail para liberar o acesso.")
-                            else:
-                                st.success("Conta criada e autenticada.")
-                                st.rerun()
-                        except Exception:
-                            st.error("Não foi possível criar a conta. Confira os dados e tente novamente.")
+    st.markdown(
+        """
+        <section class="sales-final">
+          <div class="sales-eyebrow">COMECE AGORA</div>
+          <h2>Mais clareza sobre seu dinheiro começa com <strong>um primeiro registro.</strong></h2>
+          <p>Crie sua conta gratuita e organize suas finanças no seu ritmo.</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def load_data() -> None:
