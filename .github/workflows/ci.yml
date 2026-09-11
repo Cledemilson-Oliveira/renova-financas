@@ -19,7 +19,27 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q app.py src pages
       - name: Import modules
-        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.theme_modes, src.theme_accessibility, src.ai_free_training, src.ai_training_runtime, src.training_ingest, src.urgencies"
+        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.theme_modes, src.theme_accessibility, src.ai_free_training, src.ai_training_runtime, src.training_ingest, src.urgencies, src.ui.device, src.ui.mobile, src.ui.desktop, src.ui.runtime"
+      - name: Validate responsive UI architecture
+        run: |
+          python - <<'PY'
+          import src.ui.mobile as mobile
+          import src.ui.desktop as desktop
+          import src.ui.runtime as runtime
+          import src.ui.device as device
+
+          assert callable(runtime.apply_device_ui)
+          assert callable(runtime.install_device_runtime)
+          assert callable(device.current_device)
+          assert 'st-key-renova_ai_fab' in mobile._BASE_CSS
+          assert 'st-key-launch_actions' in mobile._BASE_CSS
+          assert 'content:"Menu"' in mobile._BASE_CSS
+          assert '[data-baseweb="calendar"]' in mobile._LIGHT_CSS
+          assert '[data-baseweb="calendar"]' in mobile._DARK_CSS
+          assert 'renova-mobile-row' in mobile._BASE_CSS
+          assert 'stMainBlockContainer' in desktop._DESKTOP_CSS
+          assert getattr(runtime, '_INSTALLED', False), 'Runtime responsivo não foi instalado pelo pacote src'
+          PY
       - name: Validate theme modes and contrast
         run: |
           python - <<'PY'
