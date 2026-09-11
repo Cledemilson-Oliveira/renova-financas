@@ -17,6 +17,7 @@ from src.recurring_finance import (
     list_recurring_plans,
     materialize_due_recurring,
     set_recurring_active,
+    update_recurring_plan,
 )
 from src.repository import fetch_financial_data
 from src.supabase_client import current_user, is_authenticated, is_configured
@@ -318,6 +319,166 @@ def _render_projection() -> None:
         st.dataframe(view, use_container_width=True, hide_index=True)
 
 
+@st.dialog("✏️ Editar conta / recorrência", width="large")
+def _edit_recurring_dialog(recurring_id: str) -> None:
+    if recurring is None or recurring.empty:
+        st.error("Recorrência não encontrada.")
+        return
+
+    matches = recurring[recurring["id"].astype(str) == str(recurring_id)]
+    if matches.empty:
+        st.error("Recorrência não encontrada.")
+        return
+
+    selected = matches.iloc[0]
+    kind = str(selected.get("kind") or "despesa")
+    schedule_type = str(selected.get("schedule_type") or SCHEDULE_FIXED)
+    generated = int(selected.get("parcelas_geradas") or 0)
+    total_existing = int(selected.get("parcelas_total") or 0) if pd.notna(selected.get("parcelas_total")) else 0
+    completed = schedule_type == SCHEDULE_INSTALLMENTS and total_existing > 0 and generated >= total_existing
+
+    account_map = _account_options()
+    category_map = _category_options(kind)
+    if not account_map or not category_map:
+        st.error("Conta ou categoria necessária para edição não está disponível.")
+        return
+
+    account_labels = list(account_map.keys())
+    current_account_id = str(selected.get("account_id") or "")
+    current_account_label = next(
+        (label for label, value in account_map.items() if str(value) == current_account_id),
+        account_labels[0],
+    )
+
+    category_labels = list(category_map.keys())
+    current_category_id = str(selected.get("category_id") or "")
+    current_category_label = next(
+        (label for label, value in category_map.items() if str(value) == current_category_id),
+        category_labels[0],
+    )
+
+    next_due = selected.get("proximo_vencimento")
+    if not isinstance(next_due, date):
+        raw_next = selected.get("next_due_date")
+        next_due = pd.to_datetime(raw_next).date() if pd.notna(raw_next) else date.today()
+
+    st.caption(
+        "As alterações passam a valer para as próximas ocorrências. "
+        "Lançamentos que já foram gerados permanecem no histórico e podem ser corrigidos em Lançamentos."
+    )
+    st.info(
+        f"Modalidade: **{selected.get('modalidade')}** • "
+        f"Tipo: **{selected.get('tipo')}**. A modalidade é preservada para proteger o histórico."
+    )
+
+    c1, c2 = st.columns(2)
+    with c1:
+        description = st.text_input(
+            "Descrição",
+            value=str(selected.get("description") or ""),
+            key=f"edit_recurring_description_{recurring_id}",
+        )
+        account_label = st.selectbox(
+            "Conta de movimentação",
+            account_labels,
+            index=account_labels.index(current_account_label),
+            key=f"edit_recurring_account_{recurring_id}",
+        )
+    with c2:
+        category_label = st.selectbox(
+            "Categoria",
+            category_labels,
+            index=category_labels.index(current_category_label),
+            key=f"edit_recurring_category_{recurring_id}",
+        )
+        next_due_date = st.date_input(
+            "Próximo vencimento / recebimento a gerar",
+            value=next_due,
+            key=f"edit_recurring_next_due_{recurring_id}",
+        )
+
+    monthly_amount = None
+    total_amount = None
+    total_installments = None
+
+    if schedule_type == SCHEDULE_FIXED:
+        monthly_amount = st.number_input(
+            "Valor mensal",
+            min_value=0.01,
+            value=float(selected.get("valor_ciclo") or selected.get("amount") or 0.01),
+            step=10.0,
+            format="%.2f",
+            key=f"edit_recurring_monthly_{recurring_id}",
+        )
+        st.success("🔁 O novo valor será usado a partir da próxima ocorrência ainda não gerada.")
+    else:
+        if completed:
+            st.warning(
+                "Este parcelamento já foi concluído. Você pode corrigir descrição, conta, categoria e observação, "
+                "mas valor e quantidade de parcelas ficam preservados."
+            )
+            total_amount = float(selected.get("valor_total") or 0)
+            total_installments = total_existing
+        else:
+            p1, p2 = st.columns(2)
+            with p1:
+                total_amount = st.number_input(
+                    "Valor total do parcelamento",
+                    min_value=0.01,
+                    value=float(selected.get("valor_total") or 0.01),
+                    step=10.0,
+                    format="%.2f",
+                    key=f"edit_recurring_total_{recurring_id}",
+                )
+            with p2:
+                minimum_installments = max(generated + 1, 1)
+                total_installments = int(
+                    st.number_input(
+                        "Quantidade total de parcelas",
+                        min_value=minimum_installments,
+                        max_value=360,
+                        value=max(total_existing, minimum_installments),
+                        step=1,
+                        key=f"edit_recurring_installments_{recurring_id}",
+                    )
+                )
+            st.info(
+                f"🧾 **{generated} parcela(s) já gerada(s)**. "
+                "O RENOVA recalculará somente as próximas parcelas e ajustará a última por centavos, se necessário."
+            )
+
+    raw_notes = selected.get("notes")
+    notes = st.text_input(
+        "Observação (opcional)",
+        value="" if pd.isna(raw_notes) else str(raw_notes or ""),
+        key=f"edit_recurring_notes_{recurring_id}",
+    )
+
+    if st.button(
+        "💾 SALVAR ALTERAÇÕES",
+        key=f"save_recurring_edit_{recurring_id}",
+        type="primary",
+        use_container_width=True,
+    ):
+        try:
+            update_recurring_plan(
+                user_id,
+                str(recurring_id),
+                account_id=account_map[account_label],
+                category_id=category_map[category_label],
+                description=description,
+                next_due_date=next_due_date,
+                notes=notes,
+                monthly_amount=monthly_amount,
+                total_amount=total_amount,
+                total_installments=total_installments,
+            )
+            st.success("Recorrência atualizada. As próximas ocorrências usarão os novos dados.")
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Não foi possível salvar a edição: {exc}")
+
+
 def _render_management() -> None:
     st.markdown("### 🔁 Contas e receitas automáticas")
     st.caption(
@@ -360,7 +521,7 @@ def _render_management() -> None:
     selected = options[selected_label]
     active = bool(selected.get("ativo"))
 
-    c1, c2 = st.columns([1, 2])
+    c1, c2, c3 = st.columns([1, 1, 2])
     with c1:
         action = "⏸️ Pausar" if active else "▶️ Reativar"
         if st.button(action, use_container_width=True, key="toggle_recurring_active"):
@@ -371,6 +532,9 @@ def _render_management() -> None:
             except Exception as exc:
                 st.error(f"Não foi possível atualizar: {exc}")
     with c2:
+        if st.button("✏️ Editar", use_container_width=True, key="edit_recurring_plan"):
+            _edit_recurring_dialog(str(selected["id"]))
+    with c3:
         if selected.get("schedule_type") == SCHEDULE_INSTALLMENTS:
             remaining = int(selected.get("parcelas_restantes") or 0)
             st.info(f"Restam **{remaining} parcela(s)** para este lançamento.")
