@@ -20,6 +20,9 @@ def install_navigation_runtime() -> None:
     alteração depois que um widget com a mesma chave é instanciado. Aqui
     ``nav_page`` deixa de ser chave de widget e volta a ser apenas estado de
     aplicação, eliminando o conflito sem reescrever as regras financeiras.
+
+    A rota de assinatura é tratada separadamente para abrir a página comercial
+    completa antes da criação do checkout Mercado Pago.
     """
     global _INSTALLED, _ORIGINAL_RADIO
     if _INSTALLED:
@@ -41,6 +44,11 @@ def install_navigation_runtime() -> None:
         if current not in available:
             current = available[0]
             st.session_state["nav_page"] = current
+
+        # Toda entrada para a assinatura passa primeiro pela página de vendas.
+        # Isso também cobre atalhos internos que apenas definem nav_page e fazem rerun.
+        if current == "Assinar RENOVA IA":
+            st.switch_page("pages/Assinar_RENOVA_IA.py")
 
         if current_device() == "mobile":
             from .ui.navigation_mobile import render_mobile_navigation
