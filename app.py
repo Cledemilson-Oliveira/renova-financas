@@ -22,6 +22,8 @@ from src.repository import (
     create_card,
     create_transaction,
     fetch_financial_data,
+    get_ai_plan,
+    has_active_ai_subscription,
     upsert_budget,
 )
 from src.supabase_client import (
@@ -277,7 +279,7 @@ except Exception:
     st.stop()
 
 
-floating_ai_button()
+AI_FAB_CLICKED = floating_ai_button()
 
 
 def account_options() -> dict[str, str]:
@@ -629,86 +631,50 @@ def render_reports() -> None:
     st.caption("PDF e XLSX entram na próxima etapa do módulo de relatórios.")
 
 
-def render_ai() -> None:
-    hero(
-        "RENOVA IA <strong>Financeira</strong>",
-        "Converse com sua gestão financeira. A IA analisa e executa ações quando você pedir.",
-    )
+def session_user_id() -> str:
+    user = current_user()
+    return str(user.id) if user and getattr(user, "id", None) else ""
 
-    tx = st.session_state.transactions.copy()
-    summary = financial_summary(tx, st.session_state.accounts)
-    budgets = st.session_state.budgets.copy()
 
-    st.markdown("### Visão inteligente de hoje")
-    alert_cols = st.columns(3)
-    with alert_cols[0]:
-        metric_card("Saldo", brl(summary["saldo"]), "Saldo consolidado")
-    with alert_cols[1]:
-        metric_card("Resultado", brl(summary["resultado"]), "Receitas menos despesas")
-    with alert_cols[2]:
-        metric_card("Economia", f"{summary['taxa_economia']:.1f}%", "Taxa atual")
+def has_renova_ai_access() -> bool:
+    uid = session_user_id()
+    if not uid:
+        return False
+    try:
+        if is_owner(uid):
+            return True
+        return has_active_ai_subscription(uid)
+    except Exception:
+        return False
 
-    alerts = []
-    if summary["resultado"] < 0:
-        alerts.append(("🔴", "Resultado negativo", f"As despesas superaram as receitas em {brl(abs(summary['resultado']))}."))
-    if summary["taxa_economia"] < 10 and summary["receitas"] > 0:
-        alerts.append(("🟠", "Margem de segurança baixa", f"A taxa de economia está em {summary['taxa_economia']:.1f}%."))
-    if not budgets.empty:
-        budgets["uso"] = budgets.apply(
-            lambda row: float(row["realizado"]) / float(row["orcamento"]) if float(row["orcamento"]) else 0,
-            axis=1,
-        )
-        for _, row in budgets[budgets["uso"] >= .85].iterrows():
-            alerts.append(("🟡", f"Orçamento de {row['categoria']} em atenção", f"Já foi utilizado {row['uso']*100:.0f}% do limite definido."))
-    if not alerts:
-        alerts.append(("🟢", "Situação controlada", "Nenhuma urgência automática foi detectada nos dados atuais."))
 
-    with st.expander("Alertas automáticos", expanded=False):
-        for icon, title, text in alerts:
-            st.markdown(f"**{icon} {title}**")
-            st.write(text)
-
-    st.markdown("### Converse com a RENOVA IA")
-    st.caption("🧠 Ela também aprende preferências suas. Ex.: “Quando eu disser pensão, use a categoria Família” ou “Use sempre a conta Nubank”.")
-    st.caption(
-        "Exemplos: “Gastei R$ 85 no mercado hoje”, “Recebi R$ 1.500 de um freelance”, "
-        "“Crie uma meta de R$ 5.000”, “Defina orçamento de R$ 600 para alimentação” "
-        "ou “Faça um resumo das minhas finanças”."
-    )
-
-    if not REAL_MODE:
-        st.warning("O Modo Execução precisa do Supabase conectado para registrar ações reais.")
-        return
-
+def _ensure_ai_messages() -> None:
     if "ai_messages" not in st.session_state:
         st.session_state.ai_messages = [
             {
                 "role": "assistant",
                 "content": (
-                    "Olá! Eu sou a **RENOVA IA Financeira**. Posso analisar seus números e também "
-                    "administrar pelo chat receitas, despesas, contas, cartões, transferências, categorias, recorrências, metas, orçamentos, baixas e análises."
+                    "Olá! Eu sou a **RENOVA IA Financeira**. Posso analisar seus números e executar "
+                    "ações de gestão financeira pelo chat."
                 ),
             }
         ]
 
-    for message in st.session_state.ai_messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
 
-    pending = st.session_state.get("ai_pending_action")
-    if pending:
-        st.warning("Existe uma ação sensível aguardando confirmação. Digite **CONFIRMAR** para executar ou **CANCELAR** para desistir.")
+def _refresh_active_financial_data(user_id: str) -> None:
+    refreshed = fetch_financial_data(user_id)
+    for key, value in refreshed.items():
+        st.session_state[key] = value
 
-    prompt = st.chat_input("Digite seu comando financeiro...")
-    if not prompt:
-        return
 
+def _execute_ai_prompt(prompt: str) -> None:
+    _ensure_ai_messages()
     st.session_state.ai_messages.append({"role": "user", "content": prompt})
     normalized = prompt.strip().upper()
+    pending = st.session_state.get("ai_pending_action")
+    user_id = active_user_id()
 
     try:
-        user_id = active_user_id()
-
         if pending and normalized == "CONFIRMAR":
             result = confirm_pending_action(
                 user_id,
@@ -718,15 +684,20 @@ def render_ai() -> None:
             st.session_state.pop("ai_pending_action", None)
             st.session_state.pop("ai_pending_command", None)
         elif pending and normalized == "CANCELAR":
-            result_text = "✅ A ação sensível foi cancelada e nenhuma alteração foi feita."
             st.session_state.pop("ai_pending_action", None)
             st.session_state.pop("ai_pending_command", None)
-            st.session_state.ai_messages.append({"role": "assistant", "content": result_text})
-            st.rerun()
+            st.session_state.ai_messages.append(
+                {"role": "assistant", "content": "✅ A ação sensível foi cancelada e nenhuma alteração foi feita."}
+            )
+            return
         elif pending:
-            result_text = "Há uma ação sensível pendente. Digite **CONFIRMAR** ou **CANCELAR** antes de enviar outro comando."
-            st.session_state.ai_messages.append({"role": "assistant", "content": result_text})
-            st.rerun()
+            st.session_state.ai_messages.append(
+                {
+                    "role": "assistant",
+                    "content": "Há uma ação sensível pendente. Digite **CONFIRMAR** ou **CANCELAR** antes de enviar outro comando.",
+                }
+            )
+            return
         else:
             bundle = {
                 "transactions": st.session_state.transactions,
@@ -743,10 +714,7 @@ def render_ai() -> None:
 
         st.session_state.ai_messages.append({"role": "assistant", "content": result.text})
         if result.executed:
-            refreshed = fetch_financial_data(user_id)
-            for key, value in refreshed.items():
-                st.session_state[key] = value
-        st.rerun()
+            _refresh_active_financial_data(user_id)
     except Exception as exc:
         st.session_state.ai_messages.append(
             {
@@ -755,20 +723,105 @@ def render_ai() -> None:
             }
         )
         st.session_state.ai_last_error = str(exc)
+
+
+def render_ai_chat(input_key: str) -> None:
+    _ensure_ai_messages()
+
+    for message in st.session_state.ai_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if st.session_state.get("ai_pending_action"):
+        st.warning("Existe uma ação sensível aguardando confirmação. Digite **CONFIRMAR** ou **CANCELAR**.")
+
+    prompt = st.chat_input("Digite seu comando financeiro...", key=input_key)
+    if prompt:
+        _execute_ai_prompt(prompt)
         st.rerun()
 
 
-NAV_PAGES = ["Dashboard", "Lançamentos", "Contas", "Cartões", "Orçamentos", "Análises", "Relatórios", "RENOVA IA"]
+def render_ai_subscription_sales() -> None:
+    plan = get_ai_plan() if REAL_MODE else None
+    price = float(plan.get("price", 9.90)) if plan else 9.90
+    checkout_url = str(plan.get("checkout_url") or "") if plan else ""
+
+    hero(
+        "Ative o <strong>RENOVA IA</strong>",
+        "Transforme o RENOVA Finanças em um assistente que entende seus pedidos e executa sua gestão pelo chat.",
+    )
+
+    st.markdown(
+        f"""
+        <section class="ai-subscribe-gate">
+          <div class="sales-eyebrow">PLANO RENOVA IA</div>
+          <h2>Seu assistente financeiro por <strong>R$ {price:,.2f}/mês</strong></h2>
+          <p>
+            O plano gratuito continua disponível para sua gestão manual.
+            A assinatura RENOVA IA libera o chat, Modo Execução, memória de preferências
+            e análises por conversa.
+          </p>
+          <div class="gate-benefits">
+            <span>✓ Chat financeiro IA</span>
+            <span>✓ Lançamentos por conversa</span>
+            <span>✓ Metas e orçamentos por comando</span>
+            <span>✓ Memória das suas preferências</span>
+            <span>✓ Modo Execução</span>
+          </div>
+        </section>
+        """.replace("9,90", f"{price:.2f}".replace(".", ",")),
+        unsafe_allow_html=True,
+    )
+
+    if checkout_url:
+        st.link_button(
+            "Assinar RENOVA IA por R$ 9,90/mês com Mercado Pago",
+            checkout_url,
+            use_container_width=True,
+        )
+        st.caption("Após a confirmação do Mercado Pago, o acesso à IA será liberado automaticamente.")
+    else:
+        st.info(
+            "A integração de checkout do Mercado Pago está sendo conectada. "
+            "O plano já está cadastrado e o controle de acesso já está ativo."
+        )
+
+
+@st.dialog("🤖 Assistente Financeiro IA", width="large")
+def open_ai_dialog() -> None:
+    if not has_renova_ai_access():
+        st.warning("O chat com a RENOVA IA é exclusivo do plano RENOVA IA.")
+        plan = get_ai_plan() if REAL_MODE else None
+        price = float(plan.get("price", 9.90)) if plan else 9.90
+        st.markdown(
+            f"Ative o plano por **R$ {price:.2f}/mês** para usar o Assistente Financeiro IA."
+        )
+        if st.button("Ver plano RENOVA IA", use_container_width=True):
+            st.session_state.nav_page = "Assinar RENOVA IA"
+            st.rerun()
+        return
+
+    st.caption("Converse sem sair desta tela. A IA pode executar as ações permitidas para sua conta.")
+    render_ai_chat("ai_modal_input")
+
+
+def render_ai() -> None:
+    if not has_renova_ai_access():
+        render_ai_subscription_sales()
+        return
+
+    hero(
+        "RENOVA IA <strong>Financeira</strong>",
+        "Converse com sua gestão financeira. A IA analisa e executa ações quando você pedir.",
+    )
+    st.caption("🧠 A IA aprende preferências suas e reaplica nos próximos comandos compatíveis.")
+    render_ai_chat("ai_page_input")
+
+
+NAV_PAGES = ["Dashboard", "Lançamentos", "Contas", "Cartões", "Orçamentos", "Análises", "Relatórios", "RENOVA IA", "Assinar RENOVA IA"]
 
 if "nav_page" not in st.session_state:
     st.session_state.nav_page = "Dashboard"
-
-if st.query_params.get("assistant") == "1":
-    st.session_state.nav_page = "RENOVA IA"
-    try:
-        del st.query_params["assistant"]
-    except Exception:
-        pass
 
 with st.sidebar:
     brand_block()
@@ -807,5 +860,13 @@ pages = {
     "Análises": render_analysis,
     "Relatórios": render_reports,
     "RENOVA IA": render_ai,
+    "Assinar RENOVA IA": render_ai_subscription_sales,
 }
 pages[page]()
+
+if AI_FAB_CLICKED:
+    if has_renova_ai_access():
+        open_ai_dialog()
+    else:
+        st.session_state.nav_page = "Assinar RENOVA IA"
+        st.rerun()
