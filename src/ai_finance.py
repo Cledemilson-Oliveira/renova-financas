@@ -15,7 +15,9 @@ from src.repository import (
     create_recurring_transaction,
     create_transaction,
     create_transfer,
+    fetch_ai_preferences,
     log_ai_action,
+    upsert_ai_preference,
     upsert_budget,
     update_account,
     update_card,
@@ -153,6 +155,181 @@ def _pick_account(accounts, message: str) -> tuple[str | None, str]:
     return str(first["id"]), str(first["conta"])
 
 
+def _preference_map(user_id: str) -> dict[str, Any]:
+    prefs = fetch_ai_preferences(user_id)
+    result: dict[str, Any] = {
+        "category_aliases": {},
+        "type_aliases": {},
+        "default_account": None,
+        "instructions": [],
+    }
+    for pref in prefs:
+        value = pref.get("preference_value") or {}
+        ptype = value.get("type")
+        if ptype == "category_alias":
+            trigger = _norm(str(value.get("trigger") or ""))
+            category = str(value.get("category") or "")
+            if trigger and category:
+                result["category_aliases"][trigger] = category
+        elif ptype == "type_alias":
+            trigger = _norm(str(value.get("trigger") or ""))
+            kind = str(value.get("kind") or "")
+            if trigger and kind in {"receita", "despesa"}:
+                result["type_aliases"][trigger] = kind
+        elif ptype == "default_account":
+            result["default_account"] = str(value.get("account") or "")
+        elif ptype == "instruction":
+            text = str(value.get("text") or "").strip()
+            if text:
+                result["instructions"].append(text)
+    return result
+
+
+def _learn_preference(user_id: str, message: str, categories, accounts) -> AIReply | None:
+    normalized = _norm(message)
+
+    if any(term in normalized for term in [
+        "ignore seguranca",
+        "nao peca confirmacao",
+        "sem confirmacao para excluir",
+        "desative confirmacao",
+    ]):
+        return AIReply(
+            "Posso aprender seu jeito de trabalhar, mas não salvo preferências que desativem "
+            "confirmações de segurança para ações destrutivas ou irreversíveis."
+        )
+
+    m = re.search(
+        r"quando eu disser\s+(.+?)\s+(?:use|coloque|considere)\s+(?:a\s+)?categoria\s+(.+)$",
+        message,
+        flags=re.I,
+    )
+    if m:
+        trigger = m.group(1).strip(" .,:;-")
+        category_name = m.group(2).strip(" .,:;-")
+        existing = None
+        if categories is not None and not categories.empty:
+            for _, row in categories.iterrows():
+                if _norm(str(row["name"])) == _norm(category_name):
+                    existing = str(row["name"])
+                    break
+        if not existing:
+            return AIReply(
+                f"Não encontrei a categoria **{category_name}**. "
+                "Crie essa categoria primeiro ou me diga outra existente."
+            )
+        key = f"category_alias:{_norm(trigger)}"
+        upsert_ai_preference(
+            user_id,
+            key,
+            {"type": "category_alias", "trigger": trigger, "category": existing},
+            message,
+        )
+        text = (
+            f"🧠 Aprendi: quando você disser **{trigger}**, "
+            f"vou usar a categoria **{existing}**."
+        )
+        log_ai_action(user_id, message, "learn_preference", {"key": key}, "executed", text)
+        return AIReply(text=text, executed=True)
+
+    m = re.search(
+        r"quando eu disser\s+(.+?)\s+(?:considere|trate|registre)\s+(?:como\s+)?(receita|despesa)",
+        message,
+        flags=re.I,
+    )
+    if m:
+        trigger = m.group(1).strip(" .,:;-")
+        kind = _norm(m.group(2))
+        key = f"type_alias:{_norm(trigger)}"
+        upsert_ai_preference(
+            user_id,
+            key,
+            {"type": "type_alias", "trigger": trigger, "kind": kind},
+            message,
+        )
+        text = f"🧠 Aprendi: **{trigger}** será tratado como **{kind}**."
+        log_ai_action(user_id, message, "learn_preference", {"key": key}, "executed", text)
+        return AIReply(text=text, executed=True)
+
+    m = re.search(r"(?:use|utilize)\s+sempre\s+(?:a\s+)?conta\s+(.+)$", message, flags=re.I)
+    if m:
+        account_name = m.group(1).strip(" .,:;-")
+        existing = None
+        if accounts is not None and not accounts.empty:
+            for _, row in accounts.iterrows():
+                if _norm(str(row["conta"])) == _norm(account_name):
+                    existing = str(row["conta"])
+                    break
+        if not existing:
+            return AIReply(f"Não encontrei a conta **{account_name}**.")
+        key = "default_account"
+        upsert_ai_preference(
+            user_id,
+            key,
+            {"type": "default_account", "account": existing},
+            message,
+        )
+        text = (
+            f"🧠 Aprendi: vou usar **{existing}** como sua conta padrão "
+            "quando você não indicar outra."
+        )
+        log_ai_action(user_id, message, "learn_preference", {"key": key}, "executed", text)
+        return AIReply(text=text, executed=True)
+
+    if any(term in normalized for term in [
+        "aprenda que",
+        "lembre que",
+        "prefiro que",
+        "sempre quero que",
+    ]):
+        key = f"instruction:{abs(hash(normalized))}"
+        upsert_ai_preference(
+            user_id,
+            key,
+            {"type": "instruction", "text": message.strip()},
+            message,
+        )
+        text = "🧠 Preferência salva. Vou considerar essa instrução nos próximos comandos compatíveis."
+        log_ai_action(user_id, message, "learn_preference", {"key": key}, "executed", text)
+        return AIReply(text=text, executed=True)
+
+    return None
+
+
+def _infer_preferred_category(
+    message: str,
+    categories,
+    preferences: dict[str, Any],
+) -> tuple[str | None, str]:
+    normalized = _norm(message)
+    aliases = preferences.get("category_aliases", {})
+    for trigger, preferred_name in aliases.items():
+        if trigger and trigger in normalized:
+            for _, row in categories.iterrows():
+                if _norm(str(row["name"])) == _norm(preferred_name):
+                    return str(row["id"]), str(row["name"])
+    return _infer_category(message, categories)
+
+
+def _pick_preferred_account(
+    accounts,
+    message: str,
+    preferences: dict[str, Any],
+) -> tuple[str | None, str]:
+    explicit = _pick_account(accounts, message)
+    normalized = _norm(message)
+    for _, row in accounts.iterrows():
+        if _norm(str(row["conta"])) in normalized:
+            return str(row["id"]), str(row["conta"])
+
+    preferred_name = str(preferences.get("default_account") or "")
+    if preferred_name:
+        for _, row in accounts.iterrows():
+            if _norm(str(row["conta"])) == _norm(preferred_name):
+                return str(row["id"]), str(row["conta"])
+    return explicit
+
+
 def _description(message: str, fallback: str) -> str:
     cleaned = re.sub(r"r\$\s*\d[\d.,]*", "", message, flags=re.I)
     cleaned = re.sub(r"\b\d[\d.,]*\b", "", cleaned)
@@ -190,6 +367,15 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
     goals = bundle.get("goals")
     tx = bundle["transactions"]
     amount = _extract_amount(message)
+    preferences = _preference_map(user_id)
+
+    learned = _learn_preference(user_id, message, categories, accounts)
+    if learned is not None:
+        return learned
+
+    for trigger, kind_pref in preferences["type_aliases"].items():
+        if trigger and trigger in normalized:
+            normalized += f" {kind_pref}"
 
     # Consultas e análises
     if any(term in normalized for term in [
@@ -282,7 +468,7 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
         name = _description(message, "Novo cartão")
         closing_day = _extract_integer_after(message, ["fecha", "fechamento"]) or 10
         due_day = _extract_integer_after(message, ["vence", "vencimento"]) or 17
-        account_id, _ = _pick_account(accounts, message)
+        account_id, _ = _pick_preferred_account(accounts, message, preferences)
         create_card(user_id, name, amount or 0.0, closing_day, due_day, account_id)
         text = f"💳 Cartão **{name}** criado com limite de **{brl(amount or 0.0)}**, fechamento dia {closing_day} e vencimento dia {due_day}."
         log_ai_action(user_id, message, "create_card", {"name": name, "limit": amount or 0}, "executed", text)
@@ -334,7 +520,7 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
     if "orcamento" in normalized or "limite mensal" in normalized:
         if not amount:
             return AIReply("Informe o valor do orçamento mensal.")
-        category_id, category_name = _infer_category(message, categories)
+        category_id, category_name = _infer_preferred_category(message, categories, preferences)
         if not category_id:
             return AIReply("Não encontrei uma categoria para esse orçamento.")
         upsert_budget(user_id, category_id, date.today().replace(day=1), amount)
@@ -350,8 +536,8 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
     if recurring and (is_income or is_expense):
         if not amount:
             return AIReply("Informe o valor do lançamento recorrente.")
-        account_id, account_name = _pick_account(accounts, message)
-        category_id, category_name = _infer_category(message, categories)
+        account_id, account_name = _pick_preferred_account(accounts, message, preferences)
+        category_id, category_name = _infer_preferred_category(message, categories, preferences)
         if not account_id:
             return AIReply("Cadastre uma conta antes de criar lançamentos.")
         kind = "receita" if is_income and not is_expense else "despesa"
@@ -375,8 +561,8 @@ def process_message(user_id: str, message: str, bundle: dict[str, Any]) -> AIRep
     if is_income or is_expense:
         if not amount:
             return AIReply("Informe o valor. Exemplo: **Gastei R$ 85 no mercado hoje.**")
-        account_id, account_name = _pick_account(accounts, message)
-        category_id, category_name = _infer_category(message, categories)
+        account_id, account_name = _pick_preferred_account(accounts, message, preferences)
+        category_id, category_name = _infer_preferred_category(message, categories, preferences)
         if not account_id:
             return AIReply("Cadastre uma conta antes de criar lançamentos.")
         kind = "receita" if is_income and not is_expense else "despesa"
