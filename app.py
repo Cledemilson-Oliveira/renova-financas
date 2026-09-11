@@ -20,6 +20,7 @@ from src.repository import (
     bootstrap_user,
     create_account,
     create_card,
+    create_category,
     create_transaction,
     fetch_financial_data,
     get_ai_plan,
@@ -46,7 +47,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.11.2"
+APP_BUILD = "2026.09.11.3"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -295,9 +296,48 @@ def category_options(kind: str | None = None) -> dict[str, str]:
     if categories.empty:
         return {}
     filtered = categories.copy()
+    if "is_active" in filtered.columns:
+        filtered = filtered[filtered["is_active"] == True]
     if kind in {"receita", "despesa"} and "kind" in filtered.columns:
         filtered = filtered[filtered["kind"].isin([kind, "ambos"])]
     return {str(row["name"]): str(row["id"]) for _, row in filtered.iterrows()}
+
+
+def _refresh_categories() -> None:
+    if not REAL_MODE:
+        return
+    refreshed = fetch_financial_data(active_user_id())
+    st.session_state.categories = refreshed["categories"]
+
+
+def _create_or_get_category(kind: str, name: str) -> tuple[str, str]:
+    clean = " ".join((name or "").split()).strip()
+    if not clean:
+        raise ValueError("Informe o nome da categoria.")
+
+    existing = category_options(kind)
+    for label, category_id in existing.items():
+        if label.casefold() == clean.casefold():
+            return category_id, label
+
+    if REAL_MODE:
+        create_category(
+            active_user_id(),
+            clean,
+            kind,
+            "💰" if kind == "receita" else "💸",
+        )
+        _refresh_categories()
+        for label, category_id in category_options(kind).items():
+            if label.casefold() == clean.casefold():
+                return category_id, label
+        raise RuntimeError("A categoria foi criada, mas não pôde ser recarregada.")
+
+    new_row = pd.DataFrame(
+        [{"id": clean, "name": clean, "kind": kind, "icon": "📌", "is_active": True}]
+    )
+    st.session_state.categories = pd.concat([st.session_state.categories, new_row], ignore_index=True)
+    return clean, clean
 
 
 def render_dashboard() -> None:
@@ -350,12 +390,28 @@ def render_dashboard() -> None:
             st.info("Sem despesas categorizadas no período.")
         else:
             fig = px.pie(expenses, names="categoria", values="valor", hole=.62)
+            fig.update_traces(
+                domain={"x": [0.10, 0.90], "y": [0.18, 0.98]},
+                textposition="inside",
+                textinfo="percent",
+                hovertemplate="<b>%{label}</b><br>R$ %{value:,.2f}<br>%{percent}<extra></extra>",
+            )
             fig.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 showlegend=True,
-                margin=dict(l=0, r=0, t=20, b=0),
-                height=360,
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.02,
+                    xanchor="center",
+                    x=0.5,
+                    font=dict(size=11),
+                ),
+                margin=dict(l=16, r=16, t=8, b=62),
+                height=380,
+                uniformtext_minsize=10,
+                uniformtext_mode="hide",
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -369,61 +425,158 @@ def render_dashboard() -> None:
         st.dataframe(latest[visible], use_container_width=True, hide_index=True)
 
 
+def _render_quick_transaction_dialog(kind_db: str) -> None:
+    is_income = kind_db == "receita"
+    kind_label = "Receita" if is_income else "Despesa"
+    accounts_map = account_options()
+    if not accounts_map:
+        st.warning("Cadastre uma conta antes de criar lançamentos.")
+        return
+
+    categories_map = category_options(kind_db)
+    options = list(categories_map.keys())
+    if "Outros" not in options:
+        options.append("Outros")
+    options.append("➕ Nova categoria...")
+
+    st.caption(
+        "Categorias exibidas aqui são filtradas automaticamente para "
+        + ("receitas." if is_income else "despesas.")
+    )
+    c1, c2 = st.columns(2)
+    with c1:
+        dt = st.date_input("Data", value=date.today(), key=f"quick_{kind_db}_date")
+        account_label = st.selectbox("Conta", list(accounts_map.keys()), key=f"quick_{kind_db}_account")
+    with c2:
+        category_label = st.selectbox("Categoria", options, key=f"quick_{kind_db}_category")
+        value = st.number_input(
+            "Valor",
+            min_value=0.0,
+            step=10.0,
+            format="%.2f",
+            key=f"quick_{kind_db}_amount",
+        )
+
+    needs_custom = category_label in {"Outros", "➕ Nova categoria..."}
+    custom_category = ""
+    if needs_custom:
+        custom_category = st.text_input(
+            "Especifique a categoria",
+            placeholder="Ex.: Ferramentas, Comissão, Manutenção...",
+            key=f"quick_{kind_db}_custom_category",
+        )
+
+    description = st.text_input(
+        "Descrição",
+        placeholder="Descreva o lançamento",
+        key=f"quick_{kind_db}_description",
+    )
+
+    if st.button(
+        f"{'💰' if is_income else '💸'} SALVAR {kind_label.upper()}",
+        key=f"quick_{kind_db}_save",
+        use_container_width=True,
+    ):
+        if value <= 0:
+            st.error("Informe um valor maior que zero.")
+            return
+        if not description.strip():
+            st.error("Informe a descrição do lançamento.")
+            return
+        if needs_custom and not custom_category.strip():
+            st.error("Especifique a nova categoria antes de salvar.")
+            return
+
+        try:
+            if needs_custom:
+                category_id, category_name = _create_or_get_category(kind_db, custom_category)
+            else:
+                category_id = categories_map.get(category_label)
+                category_name = category_label
+
+            if REAL_MODE:
+                create_transaction(
+                    active_user_id(),
+                    accounts_map[account_label],
+                    category_id,
+                    kind_db,
+                    description,
+                    value,
+                    dt,
+                )
+                st.success(f"{kind_label} salva em {category_name}.")
+                st.rerun()
+            else:
+                new_row = pd.DataFrame(
+                    [[dt, kind_label, category_name, description.strip(), value, account_label]],
+                    columns=st.session_state.transactions.columns,
+                )
+                st.session_state.transactions = pd.concat([st.session_state.transactions, new_row], ignore_index=True)
+                st.rerun()
+        except Exception as exc:
+            st.error(f"Não foi possível salvar o lançamento: {exc}")
+
+
+@st.dialog("💸 Lançar despesa", width="large")
+def open_expense_dialog() -> None:
+    _render_quick_transaction_dialog("despesa")
+
+
+@st.dialog("💰 Lançar receita", width="large")
+def open_income_dialog() -> None:
+    _render_quick_transaction_dialog("receita")
+
+
 def render_transactions() -> None:
     hero(
         "Receitas e <strong>despesas</strong>",
-        "Registre, categorize e acompanhe cada movimentação financeira.",
+        "Registre rapidamente cada movimentação e mantenha sua gestão organizada.",
     )
-    accounts_map = account_options()
+
+    st.markdown(
+        """
+        <style>
+        .st-key-launch_actions{
+          position:fixed!important;
+          right:24px!important;
+          bottom:94px!important;
+          z-index:9998!important;
+          width:min(430px,calc(100vw - 48px))!important;
+          padding:10px!important;
+          border:1px solid rgba(255,215,90,.34)!important;
+          border-radius:18px!important;
+          background:linear-gradient(145deg,rgba(4,17,28,.96),rgba(2,8,14,.97))!important;
+          box-shadow:0 20px 44px rgba(0,0,0,.45),0 0 24px rgba(0,174,239,.12)!important;
+          backdrop-filter:blur(16px)!important;
+        }
+        .st-key-launch_actions [data-testid="stHorizontalBlock"]{gap:8px!important}
+        @media(max-width:768px){
+          .st-key-launch_actions{left:14px!important;right:14px!important;bottom:136px!important;width:auto!important}
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.container(key="launch_actions"):
+        c1, c2 = st.columns(2)
+        with c1:
+            expense_clicked = st.button("💸 Lançar despesa", key="fab_expense", use_container_width=True)
+        with c2:
+            income_clicked = st.button("💰 Lançar receita", key="fab_income", use_container_width=True)
+
+    if expense_clicked:
+        open_expense_dialog()
+    if income_clicked:
+        open_income_dialog()
+
+    st.caption("Use os botões flutuantes para lançar receita ou despesa. Em “Outros”, especifique a categoria e ela será criada para sua conta.")
+
     tx = st.session_state.transactions.copy()
-
-    with st.expander("➕ Novo lançamento", expanded=False):
-        if not accounts_map:
-            st.warning("Cadastre uma conta antes de criar lançamentos.")
-        else:
-            with st.form("new_transaction", clear_on_submit=True):
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    dt = st.date_input("Data", value=date.today())
-                    kind_label = st.selectbox("Tipo", ["Receita", "Despesa"])
-                kind_db = "receita" if kind_label == "Receita" else "despesa"
-                categories_map = category_options(kind_db)
-                with c2:
-                    category_label = st.selectbox("Categoria", list(categories_map.keys())) if categories_map else None
-                    account_label = st.selectbox("Conta", list(accounts_map.keys()))
-                with c3:
-                    description = st.text_input("Descrição")
-                    value = st.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
-                submitted = st.form_submit_button("Salvar lançamento", use_container_width=True)
-                if submitted:
-                    if not description.strip() or value <= 0:
-                        st.error("Informe uma descrição e um valor maior que zero.")
-                    elif REAL_MODE:
-                        try:
-                            create_transaction(
-                                active_user_id(),
-                                accounts_map[account_label],
-                                categories_map.get(category_label) if category_label else None,
-                                kind_db,
-                                description,
-                                value,
-                                dt,
-                            )
-                            st.success("Lançamento salvo.")
-                            st.rerun()
-                        except Exception:
-                            st.error("Não foi possível salvar o lançamento.")
-                    else:
-                        new_row = pd.DataFrame(
-                            [[dt, kind_label, category_label or "Outros", description.strip(), value, account_label]],
-                            columns=st.session_state.transactions.columns,
-                        )
-                        st.session_state.transactions = pd.concat([st.session_state.transactions, new_row], ignore_index=True)
-                        st.rerun()
-
     if tx.empty:
-        st.info("Nenhum lançamento cadastrado.")
+        st.info("Nenhum lançamento cadastrado. Use um dos botões flutuantes para começar.")
         return
+
     f1, f2 = st.columns(2)
     with f1:
         type_filter = st.multiselect("Filtrar por tipo", ["Receita", "Despesa"], default=["Receita", "Despesa"])
@@ -436,6 +589,63 @@ def render_transactions() -> None:
     display["valor"] = display["valor"].map(brl)
     visible = [col for col in ["data", "tipo", "categoria", "descricao", "valor", "conta", "status"] if col in display.columns]
     st.dataframe(display[visible], use_container_width=True, hide_index=True)
+
+
+def render_categories() -> None:
+    hero(
+        "Suas <strong>categorias</strong>",
+        "Crie categorias próprias para receitas e despesas e deixe os lançamentos com a cara da sua rotina.",
+    )
+    categories = st.session_state.categories.copy()
+
+    with st.expander("➕ Criar categoria personalizada", expanded=True):
+        with st.form("new_category_form", clear_on_submit=True):
+            c1, c2 = st.columns([1.5, 1])
+            with c1:
+                name = st.text_input("Nome da categoria", placeholder="Ex.: Ferramentas, Comissão, Manutenção")
+            with c2:
+                kind_label = st.selectbox("Usar em", ["Despesa", "Receita", "Receita e despesa"])
+            submitted = st.form_submit_button("Criar categoria", use_container_width=True)
+            if submitted:
+                kind_map = {"Despesa": "despesa", "Receita": "receita", "Receita e despesa": "ambos"}
+                kind_db = kind_map[kind_label]
+                if not name.strip():
+                    st.error("Informe o nome da categoria.")
+                elif REAL_MODE:
+                    try:
+                        create_category(
+                            active_user_id(),
+                            name,
+                            kind_db,
+                            "💰" if kind_db == "receita" else "💸" if kind_db == "despesa" else "📌",
+                        )
+                        _refresh_categories()
+                        st.success("Categoria criada.")
+                        st.rerun()
+                    except Exception:
+                        st.error("Não foi possível criar a categoria. Verifique se ela já existe para esse tipo.")
+                else:
+                    new_row = pd.DataFrame(
+                        [{"id": name.strip(), "name": name.strip(), "kind": kind_db, "icon": "📌", "is_active": True}]
+                    )
+                    st.session_state.categories = pd.concat([st.session_state.categories, new_row], ignore_index=True)
+                    st.rerun()
+
+    if categories.empty:
+        st.info("Nenhuma categoria cadastrada.")
+        return
+
+    kind_names = {"receita": "Receita", "despesa": "Despesa", "ambos": "Receita e despesa"}
+    view = categories.copy()
+    if "kind" in view.columns:
+        view["tipo"] = view["kind"].map(kind_names).fillna(view["kind"])
+    if "is_active" in view.columns:
+        view["status"] = view["is_active"].map({True: "Ativa", False: "Inativa"})
+    visible = [col for col in ["icon", "name", "tipo", "status"] if col in view.columns]
+    view = view.rename(columns={"icon": "ícone", "name": "categoria"})
+    visible = ["ícone" if col == "icon" else "categoria" if col == "name" else col for col in visible]
+    st.dataframe(view[visible], use_container_width=True, hide_index=True)
+    st.caption("Categorias criadas aqui aparecem automaticamente nos modais de lançamento conforme o tipo selecionado.")
 
 
 def render_accounts() -> None:
@@ -741,7 +951,7 @@ def _execute_ai_prompt(prompt: str) -> None:
         st.session_state.ai_last_error = str(exc)
 
 
-def render_ai_chat(input_key: str) -> None:
+def render_ai_chat(input_key: str, *, fragment_rerun: bool = False) -> None:
     _ensure_ai_messages()
 
     for message in st.session_state.ai_messages:
@@ -756,7 +966,10 @@ def render_ai_chat(input_key: str) -> None:
     prompt = st.chat_input("Digite seu comando financeiro...", key=input_key)
     if prompt:
         _execute_ai_prompt(prompt)
-        st.rerun()
+        if fragment_rerun:
+            st.rerun(scope="fragment")
+        else:
+            st.rerun()
 
 
 def render_ai_subscription_sales() -> None:
@@ -820,7 +1033,8 @@ def open_ai_dialog() -> None:
         return
 
     st.caption("Converse sem sair desta tela. A IA pode executar as ações permitidas para sua conta.")
-    render_ai_chat("ai_modal_input")
+    st.page_link("pages/Treinamento_IA.py", label="Treinar minha IA", icon="🧠", use_container_width=True)
+    render_ai_chat("ai_modal_input", fragment_rerun=True)
 
 
 def render_ai() -> None:
@@ -832,11 +1046,24 @@ def render_ai() -> None:
         "RENOVA IA <strong>Financeira</strong>",
         "Converse com sua gestão financeira. A IA analisa e executa ações quando você pedir.",
     )
-    st.caption("🧠 A IA aprende preferências suas e reaplica nos próximos comandos compatíveis.")
+    st.caption("🧠 A IA aprende preferências, regras e materiais de treinamento vinculados à sua conta.")
+    st.page_link("pages/Treinamento_IA.py", label="Treinar minha IA", icon="🧠", use_container_width=True)
     render_ai_chat("ai_page_input")
 
 
-NAV_PAGES = ["Dashboard", "Lançamentos", "Contas", "Cartões", "Orçamentos", "Análises", "Relatórios", "RENOVA IA", "Assinar RENOVA IA"]
+NAV_PAGES = [
+    "Dashboard",
+    "Lançamentos",
+    "Categorias",
+    "Contas",
+    "Cartões",
+    "Orçamentos",
+    "Análises",
+    "Relatórios",
+    "RENOVA IA",
+    "Treinamento IA",
+    "Assinar RENOVA IA",
+]
 
 if "nav_page" not in st.session_state:
     st.session_state.nav_page = "Dashboard"
@@ -870,9 +1097,13 @@ with st.sidebar:
         st.warning("Modo demonstração")
         st.caption("Configure SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY no Streamlit Secrets.")
 
+if page == "Treinamento IA":
+    st.switch_page("pages/Treinamento_IA.py")
+
 pages = {
     "Dashboard": render_dashboard,
     "Lançamentos": render_transactions,
+    "Categorias": render_categories,
     "Contas": render_accounts,
     "Cartões": render_cards,
     "Orçamentos": render_budgets,

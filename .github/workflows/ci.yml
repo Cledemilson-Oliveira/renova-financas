@@ -17,8 +17,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Compile Python
-        run: python -m compileall -q app.py src
+        run: python -m compileall -q app.py src pages
       - name: Import modules
-        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.ai_training_runtime"
+        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.ai_training_runtime, src.training_ingest"
       - name: Validate AI training runtime
         run: python -c "import src.ai_finance as m; assert getattr(m, '_renova_training_runtime_installed', False), 'Treinamento da IA não conectado ao processador'"

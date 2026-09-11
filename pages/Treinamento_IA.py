@@ -16,6 +16,13 @@ from src.ai_training import (
 from src.repository import fetch_financial_data, has_active_ai_subscription
 from src.supabase_client import current_user, is_authenticated, is_configured
 from src.theme import apply_renova_theme, brand_block
+from src.training_ingest import (
+    chunk_training_text,
+    compact_keywords,
+    extract_pdf_text,
+    extract_youtube_transcript,
+    youtube_video_id,
+)
 
 
 st.set_page_config(
@@ -47,8 +54,8 @@ def _hero() -> None:
         <section class="renova-hero">
           <h1>🧠 Treinamento da <strong>RENOVA IA</strong></h1>
           <p>
-            Ensine como você vive, trabalha e administra seu dinheiro. A IA transforma
-            seus ensinamentos em memória operacional e regras personalizadas para a sua conta.
+            Ensine como você vive, trabalha e administra seu dinheiro. Adicione regras,
+            conhecimentos, PDFs e conteúdos de vídeo para formar uma memória operacional privada.
           </p>
         </section>
         """,
@@ -71,7 +78,7 @@ def _status_cards(items: list[dict]) -> None:
 def _save_free_training(user_id: str) -> None:
     st.markdown("### Ensine do seu jeito")
     st.caption(
-        "Você pode registrar contexto pessoal, informações do negócio, objetivos, preferências e regras. "
+        "Registre contexto pessoal, informações do negócio, objetivos, preferências e regras. "
         "Exemplo: ‘Quando eu disser pensão, use a categoria Família’."
     )
     with st.form("training_free_form", clear_on_submit=True):
@@ -114,9 +121,7 @@ def _save_free_training(user_id: str) -> None:
 
 def _save_quick_rule(user_id: str) -> None:
     st.markdown("### Regras rápidas de execução")
-    st.caption(
-        "Estas regras são estruturadas e entram imediatamente na memória operacional usada pelo chat financeiro."
-    )
+    st.caption("Estas regras entram imediatamente na memória operacional usada pelo chat financeiro.")
 
     try:
         bundle = fetch_financial_data(user_id)
@@ -217,6 +222,133 @@ def _save_quick_rule(user_id: str) -> None:
                     st.rerun()
 
 
+def _save_source_chunks(
+    user_id: str,
+    *,
+    source_label: str,
+    base_title: str,
+    text: str,
+    area: str,
+    priority: int,
+    keywords: list[str],
+) -> int:
+    chunks = chunk_training_text(text)
+    if not chunks:
+        raise ValueError("Não encontrei conteúdo para adicionar ao treinamento.")
+
+    for index, chunk in enumerate(chunks, start=1):
+        part = f" • parte {index}/{len(chunks)}" if len(chunks) > 1 else ""
+        content = f"[Fonte: {source_label}]\n\n{chunk}"
+        create_training_item(
+            user_id,
+            title=f"{base_title}{part}"[:120],
+            area=area,
+            kind="conhecimento",
+            content=content,
+            application_mode="quando_relevante",
+            keywords=keywords,
+            priority=priority,
+            structured_rule={"rule_type": "knowledge", "text": content, "source": source_label},
+        )
+    return len(chunks)
+
+
+def _import_sources(user_id: str) -> None:
+    st.markdown("### Estudar materiais externos")
+    st.caption(
+        "A RENOVA IA transforma o texto desses materiais em memória privada da sua conta. "
+        "O conteúdo não substitui permissões, confirmações de segurança ou regras do sistema."
+    )
+
+    pdf_tab, youtube_tab = st.tabs(["📄 PDF", "▶️ YouTube"])
+
+    with pdf_tab:
+        with st.form("training_pdf_form", clear_on_submit=True):
+            pdf = st.file_uploader("Enviar PDF", type=["pdf"], accept_multiple_files=False)
+            title = st.text_input("Nome do treinamento", placeholder="Ex.: Manual financeiro da empresa")
+            c1, c2 = st.columns(2)
+            with c1:
+                area_label = st.selectbox("Área do conhecimento", list(AREAS.keys()), index=2, key="pdf_area")
+            with c2:
+                priority = st.slider("Prioridade", 0, 100, 65, 5, key="pdf_priority")
+            keywords_raw = st.text_input("Palavras-chave", placeholder="empresa, processo, financeiro", key="pdf_keywords")
+            submitted = st.form_submit_button("📄 IMPORTAR E ESTUDAR PDF", use_container_width=True)
+
+        if submitted:
+            if pdf is None:
+                st.error("Selecione um arquivo PDF.")
+            else:
+                try:
+                    with st.spinner("Lendo o PDF e organizando o treinamento..."):
+                        text = extract_pdf_text(pdf.getvalue())
+                        base_title = title.strip() or f"PDF: {pdf.name}"
+                        keywords = compact_keywords([*parse_keywords(keywords_raw), pdf.name, base_title])
+                        count = _save_source_chunks(
+                            user_id,
+                            source_label=f"PDF • {pdf.name}",
+                            base_title=base_title,
+                            text=text,
+                            area=AREAS[area_label],
+                            priority=priority,
+                            keywords=keywords,
+                        )
+                    st.success(f"PDF estudado e adicionado à memória em {count} bloco(s) de conhecimento.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Não consegui estudar este PDF: {exc}")
+
+    with youtube_tab:
+        st.info(
+            "A transcrição automática depende das legendas disponíveis no YouTube. Em alguns ambientes de nuvem, "
+            "o YouTube pode bloquear a consulta; nesse caso, cole a transcrição no campo de apoio."
+        )
+        with st.form("training_youtube_form", clear_on_submit=True):
+            url = st.text_input("Link do YouTube", placeholder="https://www.youtube.com/watch?v=...")
+            title = st.text_input("Nome do treinamento", placeholder="Ex.: Treinamento de vendas")
+            fallback = st.text_area(
+                "Transcrição manual (opcional)",
+                placeholder="Cole aqui a transcrição se o vídeo não disponibilizar legenda ou bloquear a leitura automática.",
+                height=150,
+            )
+            c1, c2 = st.columns(2)
+            with c1:
+                area_label = st.selectbox("Área do conhecimento", list(AREAS.keys()), index=2, key="yt_area")
+            with c2:
+                priority = st.slider("Prioridade", 0, 100, 65, 5, key="yt_priority")
+            keywords_raw = st.text_input("Palavras-chave", placeholder="vendas, atendimento, processo", key="yt_keywords")
+            submitted = st.form_submit_button("▶️ IMPORTAR E ESTUDAR VÍDEO", use_container_width=True)
+
+        if submitted:
+            if not url.strip():
+                st.error("Informe o link do YouTube.")
+            else:
+                try:
+                    with st.spinner("Lendo a transcrição e organizando o treinamento..."):
+                        if fallback.strip():
+                            video_id = youtube_video_id(url)
+                            text = fallback.strip()
+                        else:
+                            video_id, text = extract_youtube_transcript(url)
+                        base_title = title.strip() or f"YouTube: {video_id}"
+                        keywords = compact_keywords([*parse_keywords(keywords_raw), base_title, "YouTube", video_id])
+                        count = _save_source_chunks(
+                            user_id,
+                            source_label=f"YouTube • https://youtu.be/{video_id}",
+                            base_title=base_title,
+                            text=text,
+                            area=AREAS[area_label],
+                            priority=priority,
+                            keywords=keywords,
+                        )
+                    st.success(f"Vídeo estudado e adicionado à memória em {count} bloco(s) de conhecimento.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(
+                        "Não consegui obter a transcrição automaticamente. Se o vídeo tiver legendas mas a consulta estiver "
+                        f"bloqueada, cole a transcrição no campo manual. Detalhe: {exc}"
+                    )
+
+
 def _training_library(user_id: str, items: list[dict]) -> None:
     st.markdown("### O que a IA aprendeu")
     if not items:
@@ -228,7 +360,8 @@ def _training_library(user_id: str, items: list[dict]) -> None:
         area = str(item.get("area") or "geral").upper()
         priority = int(item.get("priority") or 0)
         with st.expander(f"{'🟢' if item.get('is_active') else '⚪'} {item.get('title')} • {area} • prioridade {priority}"):
-            st.write(item.get("content") or "")
+            content = str(item.get("content") or "")
+            st.write(content if len(content) <= 3000 else content[:3000] + "…")
             keywords = item.get("keywords") or []
             if keywords:
                 st.caption("Palavras-chave: " + " • ".join(map(str, keywords)))
@@ -249,7 +382,7 @@ def _training_library(user_id: str, items: list[dict]) -> None:
 
 with st.sidebar:
     brand_block()
-    st.page_link("app.py", label="← Voltar ao RENOVA Finanças", icon="🏠")
+    st.page_link("app.py", label="Voltar ao RENOVA Finanças", icon="🏠")
 
 _hero()
 
@@ -283,12 +416,14 @@ st.info(
     "continuam valendo mesmo quando você ensina novas preferências à IA."
 )
 
-teach_tab, rules_tab, library_tab = st.tabs(
-    ["🧠 Ensinar conhecimento", "⚙️ Regras rápidas", "📚 Memória da IA"]
+teach_tab, sources_tab, rules_tab, library_tab = st.tabs(
+    ["🧠 Ensinar conhecimento", "📎 PDF e YouTube", "⚙️ Regras rápidas", "📚 Memória da IA"]
 )
 
 with teach_tab:
     _save_free_training(uid)
+with sources_tab:
+    _import_sources(uid)
 with rules_tab:
     _save_quick_rule(uid)
 with library_tab:
