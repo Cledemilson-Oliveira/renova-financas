@@ -96,7 +96,7 @@ def _install_brazilian_date_ui() -> None:
 
 
 def _install_layout_safety_css() -> None:
-    """Evita que ações rápidas cubram gerenciamento de lançamentos."""
+    """Evita sobreposição de ações e deixa uma saída clara nos modais."""
     st.markdown(
         """
         <style>
@@ -118,6 +118,47 @@ def _install_layout_safety_css() -> None:
           padding-bottom:8.5rem!important;
         }
 
+        /*
+         * O botão nativo de fechar do st.dialog passa a ser uma ação explícita.
+         * Assim o usuário sempre enxerga como voltar ao painel sem salvar.
+         */
+        [data-testid="stDialog"] button[aria-label="Close"],
+        [data-testid="stDialog"] button[aria-label="Fechar"],
+        [data-testid="stDialog"] button[kind="header"]{
+          width:auto!important;
+          min-width:188px!important;
+          min-height:40px!important;
+          padding:0 14px!important;
+          border-radius:11px!important;
+          border:1px solid rgba(0,174,239,.50)!important;
+          background:linear-gradient(135deg,#071C2D,#0A2A48)!important;
+          color:#EAF7FF!important;
+          box-shadow:0 8px 22px rgba(0,0,0,.30),0 0 15px rgba(0,174,239,.12)!important;
+          font-size:0!important;
+        }
+        [data-testid="stDialog"] button[aria-label="Close"] svg,
+        [data-testid="stDialog"] button[aria-label="Fechar"] svg,
+        [data-testid="stDialog"] button[kind="header"] svg{
+          display:none!important;
+        }
+        [data-testid="stDialog"] button[aria-label="Close"]::after,
+        [data-testid="stDialog"] button[aria-label="Fechar"]::after,
+        [data-testid="stDialog"] button[kind="header"]::after{
+          content:"← Voltar para o painel";
+          color:#EAF7FF!important;
+          font-size:.82rem!important;
+          font-weight:900!important;
+          letter-spacing:.01em!important;
+          white-space:nowrap!important;
+        }
+        [data-testid="stDialog"] button[aria-label="Close"]:hover,
+        [data-testid="stDialog"] button[aria-label="Fechar"]:hover,
+        [data-testid="stDialog"] button[kind="header"]:hover{
+          border-color:#FFD75A!important;
+          background:linear-gradient(135deg,#0A2A48,#0B3A63)!important;
+          box-shadow:0 10px 26px rgba(0,0,0,.36),0 0 18px rgba(255,215,90,.12)!important;
+        }
+
         @media(max-width:768px){
           body .st-key-launch_actions{
             left:auto!important;
@@ -128,6 +169,18 @@ def _install_layout_safety_css() -> None:
           }
           body [data-testid="stMainBlockContainer"]{
             padding-bottom:10rem!important;
+          }
+          [data-testid="stDialog"] button[aria-label="Close"],
+          [data-testid="stDialog"] button[aria-label="Fechar"],
+          [data-testid="stDialog"] button[kind="header"]{
+            min-width:154px!important;
+            min-height:38px!important;
+            padding:0 11px!important;
+          }
+          [data-testid="stDialog"] button[aria-label="Close"]::after,
+          [data-testid="stDialog"] button[aria-label="Fechar"]::after,
+          [data-testid="stDialog"] button[kind="header"]::after{
+            font-size:.74rem!important;
           }
         }
         </style>
