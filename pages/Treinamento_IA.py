@@ -19,9 +19,8 @@ from src.theme import apply_renova_theme, brand_block
 from src.training_ingest import (
     chunk_training_text,
     compact_keywords,
-    extract_pdf_text,
+    extract_pdf_text_from_url,
     extract_youtube_transcript,
-    youtube_video_id,
 )
 
 
@@ -54,8 +53,8 @@ def _hero() -> None:
         <section class="renova-hero">
           <h1>🧠 Treinamento <strong>Personalizado da RENOVA IA</strong></h1>
           <p>
-            Ensine como você vive, trabalha e administra seu dinheiro. Adicione regras,
-            conhecimentos, PDFs e conteúdos de vídeo para formar uma memória operacional privada.
+            Ensine preferências, regras e contexto do seu jeito de organizar o dinheiro.
+            Materiais externos são estudados exclusivamente por link — sem upload de arquivos.
           </p>
         </section>
         """,
@@ -76,10 +75,10 @@ def _status_cards(items: list[dict]) -> None:
 
 
 def _save_free_training(user_id: str) -> None:
-    st.markdown("### Ensine do seu jeito")
+    st.markdown("### Ensine regras e contexto")
     st.caption(
-        "Registre contexto pessoal, informações do negócio, objetivos, preferências e regras. "
-        "Exemplo: ‘Quando eu disser pensão, use a categoria Família’."
+        "Use este formulário apenas para regras, preferências e contexto curto. "
+        "Materiais externos, PDFs e vídeos devem ser adicionados por link."
     )
     with st.form("training_free_form", clear_on_submit=True):
         c1, c2 = st.columns([1.35, 1])
@@ -102,6 +101,9 @@ def _save_free_training(user_id: str) -> None:
 
         submitted = st.form_submit_button("🧠 ENSINAR À RENOVA IA", use_container_width=True)
         if submitted:
+            if not title.strip() or not content.strip():
+                st.error("Informe um título e o conteúdo da regra ou preferência.")
+                return
             try:
                 create_training_item(
                     user_id,
@@ -161,11 +163,7 @@ def _save_quick_rule(user_id: str) -> None:
                         application_mode="sempre",
                         keywords=[trigger.strip(), category],
                         priority=90,
-                        structured_rule={
-                            "rule_type": "category_alias",
-                            "trigger": trigger.strip(),
-                            "category": category,
-                        },
+                        structured_rule={"rule_type": "category_alias", "trigger": trigger.strip(), "category": category},
                     )
                     st.success("Regra criada e ativada no chat financeiro.")
                     st.rerun()
@@ -189,11 +187,7 @@ def _save_quick_rule(user_id: str) -> None:
                         application_mode="sempre",
                         keywords=[trigger.strip(), kind],
                         priority=90,
-                        structured_rule={
-                            "rule_type": "type_alias",
-                            "trigger": trigger.strip(),
-                            "kind": kind,
-                        },
+                        structured_rule={"rule_type": "type_alias", "trigger": trigger.strip(), "kind": kind},
                     )
                     st.success("Regra criada e ativada no chat financeiro.")
                     st.rerun()
@@ -254,17 +248,18 @@ def _save_source_chunks(
 
 
 def _import_sources(user_id: str) -> None:
-    st.markdown("### Estudar materiais externos")
+    st.markdown("### Estudar materiais externos por link")
     st.caption(
-        "A RENOVA IA transforma o texto desses materiais em memória privada da sua conta. "
-        "O conteúdo não substitui permissões, confirmações de segurança ou regras do sistema."
+        "Nenhum arquivo é enviado para o armazenamento do RENOVA. O sistema lê a fonte temporariamente, "
+        "extrai o texto necessário e guarda somente o conhecimento processado."
     )
+    st.info("🔗 Política de armazenamento: materiais de treinamento somente por link. Upload de arquivo é permitido apenas para foto de perfil.")
 
-    pdf_tab, youtube_tab = st.tabs(["📄 PDF", "▶️ YouTube"])
+    pdf_tab, youtube_tab = st.tabs(["📄 PDF por link", "▶️ YouTube por link"])
 
     with pdf_tab:
-        with st.form("training_pdf_form", clear_on_submit=True):
-            pdf = st.file_uploader("Enviar PDF", type=["pdf"], accept_multiple_files=False)
+        with st.form("training_pdf_link_form", clear_on_submit=True):
+            url = st.text_input("Link público do PDF", placeholder="https://exemplo.com/manual.pdf")
             title = st.text_input("Nome do treinamento", placeholder="Ex.: Manual financeiro da empresa")
             c1, c2 = st.columns(2)
             with c1:
@@ -272,51 +267,46 @@ def _import_sources(user_id: str) -> None:
             with c2:
                 priority = st.slider("Prioridade", 0, 100, 65, 5, key="pdf_priority")
             keywords_raw = st.text_input("Palavras-chave", placeholder="empresa, processo, financeiro", key="pdf_keywords")
-            submitted = st.form_submit_button("📄 IMPORTAR E ESTUDAR PDF", use_container_width=True)
+            submitted = st.form_submit_button("🔗 ESTUDAR PDF PELO LINK", use_container_width=True)
 
         if submitted:
-            if pdf is None:
-                st.error("Selecione um arquivo PDF.")
+            if not url.strip():
+                st.error("Informe o link público do PDF.")
             else:
                 try:
-                    with st.spinner("Lendo o PDF e organizando o treinamento..."):
-                        text = extract_pdf_text(pdf.getvalue())
-                        base_title = title.strip() or f"PDF: {pdf.name}"
-                        keywords = compact_keywords([*parse_keywords(keywords_raw), pdf.name, base_title])
+                    with st.spinner("Lendo o PDF pelo link e organizando o treinamento..."):
+                        final_url, text = extract_pdf_text_from_url(url)
+                        base_title = title.strip() or "PDF externo"
+                        keywords = compact_keywords([*parse_keywords(keywords_raw), base_title, "PDF"])
                         count = _save_source_chunks(
                             user_id,
-                            source_label=f"PDF • {pdf.name}",
+                            source_label=f"PDF • {final_url}",
                             base_title=base_title,
                             text=text,
                             area=AREAS[area_label],
                             priority=priority,
                             keywords=keywords,
                         )
-                    st.success(f"PDF estudado e adicionado à memória em {count} bloco(s) de conhecimento.")
+                    st.success(f"PDF estudado pelo link e adicionado à memória em {count} bloco(s) de conhecimento.")
                     st.rerun()
                 except Exception as exc:
-                    st.error(f"Não consegui estudar este PDF: {exc}")
+                    st.error(f"Não consegui estudar esse PDF pelo link: {exc}")
 
     with youtube_tab:
         st.info(
-            "A transcrição automática depende das legendas disponíveis no YouTube. Em alguns ambientes de nuvem, "
-            "o YouTube pode bloquear a consulta; nesse caso, cole a transcrição no campo de apoio."
+            "A leitura usa as legendas/transcrição disponibilizadas pelo YouTube. "
+            "Se o vídeo não tiver transcrição acessível, use outro conteúdo publicado por link."
         )
-        with st.form("training_youtube_form", clear_on_submit=True):
+        with st.form("training_youtube_link_form", clear_on_submit=True):
             url = st.text_input("Link do YouTube", placeholder="https://www.youtube.com/watch?v=...")
             title = st.text_input("Nome do treinamento", placeholder="Ex.: Treinamento de vendas")
-            fallback = st.text_area(
-                "Transcrição manual (opcional)",
-                placeholder="Cole aqui a transcrição se o vídeo não disponibilizar legenda ou bloquear a leitura automática.",
-                height=150,
-            )
             c1, c2 = st.columns(2)
             with c1:
                 area_label = st.selectbox("Área do conhecimento", list(AREAS.keys()), index=2, key="yt_area")
             with c2:
                 priority = st.slider("Prioridade", 0, 100, 65, 5, key="yt_priority")
             keywords_raw = st.text_input("Palavras-chave", placeholder="vendas, atendimento, processo", key="yt_keywords")
-            submitted = st.form_submit_button("▶️ IMPORTAR E ESTUDAR VÍDEO", use_container_width=True)
+            submitted = st.form_submit_button("▶️ ESTUDAR VÍDEO PELO LINK", use_container_width=True)
 
         if submitted:
             if not url.strip():
@@ -324,29 +314,23 @@ def _import_sources(user_id: str) -> None:
             else:
                 try:
                     with st.spinner("Lendo a transcrição e organizando o treinamento..."):
-                        if fallback.strip():
-                            video_id = youtube_video_id(url)
-                            text = fallback.strip()
-                        else:
-                            video_id, text = extract_youtube_transcript(url)
+                        video_id, text = extract_youtube_transcript(url)
                         base_title = title.strip() or f"YouTube: {video_id}"
+                        source_url = f"https://youtu.be/{video_id}"
                         keywords = compact_keywords([*parse_keywords(keywords_raw), base_title, "YouTube", video_id])
                         count = _save_source_chunks(
                             user_id,
-                            source_label=f"YouTube • https://youtu.be/{video_id}",
+                            source_label=f"YouTube • {source_url}",
                             base_title=base_title,
                             text=text,
                             area=AREAS[area_label],
                             priority=priority,
                             keywords=keywords,
                         )
-                    st.success(f"Vídeo estudado e adicionado à memória em {count} bloco(s) de conhecimento.")
+                    st.success(f"Vídeo estudado pelo link e adicionado à memória em {count} bloco(s) de conhecimento.")
                     st.rerun()
                 except Exception as exc:
-                    st.error(
-                        "Não consegui obter a transcrição automaticamente. Se o vídeo tiver legendas mas a consulta estiver "
-                        f"bloqueada, cole a transcrição no campo manual. Detalhe: {exc}"
-                    )
+                    st.error(f"Não consegui obter a transcrição desse vídeo: {exc}")
 
 
 def _training_library(user_id: str, items: list[dict]) -> None:
@@ -365,9 +349,7 @@ def _training_library(user_id: str, items: list[dict]) -> None:
             keywords = item.get("keywords") or []
             if keywords:
                 st.caption("Palavras-chave: " + " • ".join(map(str, keywords)))
-            st.caption(
-                f"Status: {status} · Tipo: {item.get('kind')} · Aplicação: {item.get('application_mode')}"
-            )
+            st.caption(f"Status: {status} · Tipo: {item.get('kind')} · Aplicação: {item.get('application_mode')}")
             c1, c2 = st.columns(2)
             with c1:
                 action_label = "Pausar treinamento" if item.get("is_active") else "Reativar treinamento"
@@ -391,18 +373,13 @@ if not is_configured():
     st.stop()
 
 if not is_authenticated():
-    st.warning("Entre na sua conta para acessar o Treinamento da IA.")
-    st.page_link("app.py", label="Ir para o login")
-    st.stop()
+    st.session_state.nav_page = "Assinar RENOVA IA"
+    st.switch_page("app.py")
 
 uid = _user_id()
 if not _has_access(uid):
-    st.warning("🧠 O Treinamento Personalizado é exclusivo para assinantes RENOVA IA.")
-    st.write(
-        "Sua conta gratuita já possui a IA Padrão para gestão financeira. No Premium, você libera uma memória de treinamento própria, isolada e protegida pelo Supabase."
-    )
-    st.page_link("app.py", label="Voltar e assinar RENOVA IA")
-    st.stop()
+    st.session_state.nav_page = "Assinar RENOVA IA"
+    st.switch_page("app.py")
 
 try:
     training_items = list_training_items(uid)
@@ -415,9 +392,13 @@ st.info(
     "🔐 Seus treinamentos ficam vinculados à sua conta. Regras de segurança, permissões e confirmações sensíveis "
     "continuam valendo mesmo quando você ensina novas preferências à IA."
 )
+st.warning(
+    "📎 Arquivos não são armazenados para treinamento. Use links públicos para PDFs e vídeos. "
+    "A única exceção de upload no RENOVA Finanças é a foto de perfil."
+)
 
 teach_tab, sources_tab, rules_tab, library_tab = st.tabs(
-    ["🧠 Ensinar conhecimento", "📎 PDF e YouTube", "⚙️ Regras rápidas", "📚 Memória da IA"]
+    ["🧠 Regras e contexto", "🔗 Conteúdos por link", "⚙️ Regras rápidas", "📚 Memória da IA"]
 )
 
 with teach_tab:
