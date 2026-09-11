@@ -387,45 +387,36 @@ body:has(input[aria-label="Senha"]) [data-testid="stForm"]{
   background-size:52px 28px;transform:perspective(380px) rotateX(62deg);transform-origin:bottom;opacity:.38;z-index:0;
 }
 
-.renova-ai-fab{
-  position:fixed;
-  right:24px;
-  bottom:24px;
-  z-index:9999;
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:13px 17px;
-  border-radius:999px;
-  border:1px solid rgba(255,215,90,.78);
-  background:linear-gradient(135deg,#071C2D,#0A2A48 58%,#03101A);
+.st-key-renova_ai_fab{
+  position:fixed!important;
+  right:24px!important;
+  bottom:24px!important;
+  z-index:9999!important;
+  width:auto!important;
+}
+.st-key-renova_ai_fab [data-testid="stButton"]{width:auto!important}
+.st-key-renova_ai_fab button{
+  min-height:56px!important;
+  padding:0 18px!important;
+  border-radius:999px!important;
+  border:1px solid rgba(255,215,90,.78)!important;
+  background:linear-gradient(135deg,#071C2D,#0A2A48 58%,#03101A)!important;
   color:#FFE477!important;
-  text-decoration:none!important;
-  font-weight:950;
-  font-size:.86rem;
-  letter-spacing:.01em;
-  box-shadow:0 16px 38px rgba(0,0,0,.42),0 0 24px rgba(0,174,239,.20),0 0 16px rgba(255,215,90,.12);
-  backdrop-filter:blur(14px);
-  transition:.2s ease;
+  -webkit-text-fill-color:#FFE477!important;
+  font-weight:950!important;
+  font-size:.86rem!important;
+  box-shadow:0 16px 38px rgba(0,0,0,.42),0 0 24px rgba(0,174,239,.20),0 0 16px rgba(255,215,90,.12)!important;
+  backdrop-filter:blur(14px)!important;
 }
-.renova-ai-fab:hover{
-  transform:translateY(-3px) scale(1.015);
-  border-color:#FFF0A3;
-  box-shadow:0 20px 44px rgba(0,0,0,.48),0 0 30px rgba(0,174,239,.28),0 0 19px rgba(255,215,90,.20);
+.st-key-renova_ai_fab button:hover{
+  transform:translateY(-3px) scale(1.015)!important;
+  border-color:#FFF0A3!important;
+  background:linear-gradient(135deg,#0A2A48,#0B3A63 58%,#04131F)!important;
+  color:#FFE477!important;
+  -webkit-text-fill-color:#FFE477!important;
+  box-shadow:0 20px 44px rgba(0,0,0,.48),0 0 30px rgba(0,174,239,.28),0 0 19px rgba(255,215,90,.20)!important;
 }
-.renova-ai-fab .icon{
-  width:34px;height:34px;border-radius:50%;
-  display:grid;place-items:center;
-  background:linear-gradient(135deg,#00AEEF,#0077FF);
-  color:#fff!important;
-  font-size:1.05rem;
-  box-shadow:0 0 18px rgba(0,174,239,.34);
-}
-.renova-ai-fab .copy{display:flex;flex-direction:column;line-height:1.05}
-.renova-ai-fab .copy small{
-  color:#8EDFFF!important;font-size:.58rem;font-weight:900;letter-spacing:.08em;margin-bottom:4px
-}
-.renova-ai-fab .copy strong{color:#FFE477!important;font-size:.84rem}
+.st-key-renova_ai_fab button *{color:#FFE477!important;-webkit-text-fill-color:#FFE477!important}
 
 @media(max-width:768px){
   .sales-hero{padding:42px 18px 34px;border-radius:20px}
@@ -447,16 +438,28 @@ body:has(input[aria-label="Senha"]) [data-testid="stForm"]{
   [data-testid="stAppViewContainer"]:after{opacity:.14;height:13vh}
   [data-baseweb="tab-list"]{overflow-x:auto!important;flex-wrap:nowrap!important}
   [data-baseweb="tab"]{min-width:max-content!important;padding:0 12px!important}
-  .renova-ai-fab{
-    right:14px;
-    bottom:78px;
-    padding:10px 12px;
-    gap:8px;
-    max-width:calc(100vw - 28px);
+  .st-key-renova_ai_fab{
+    right:14px!important;
+    bottom:78px!important;
+    max-width:calc(100vw - 28px)!important;
   }
-  .renova-ai-fab .icon{width:31px;height:31px;font-size:.95rem}
-  .renova-ai-fab .copy small{font-size:.52rem}
-  .renova-ai-fab .copy strong{font-size:.76rem}
+  .st-key-renova_ai_fab button{
+    min-height:50px!important;
+    padding:0 14px!important;
+    font-size:.78rem!important;
+  }
+}
+
+[data-testid="stDialog"]>div{
+  border:1px solid rgba(255,215,90,.35)!important;
+  background:linear-gradient(145deg,rgba(4,17,28,.99),rgba(2,8,14,.99))!important;
+  box-shadow:0 28px 80px rgba(0,0,0,.55),0 0 35px rgba(0,174,239,.12)!important;
+}
+[data-testid="stDialog"] [data-testid="stChatMessage"]{
+  border:1px solid rgba(0,174,239,.12);
+  border-radius:14px;
+  padding:8px 10px;
+  background:rgba(6,19,31,.70);
 }
 
 @media(prefers-reduced-motion:reduce){
@@ -487,19 +490,13 @@ def brand_block() -> None:
 
 
 
-def floating_ai_button() -> None:
-    st.markdown(
-        """
-        <a class="renova-ai-fab" href="?assistant=1" target="_self" aria-label="Abrir Assistente Financeiro IA">
-          <span class="icon">🤖</span>
-          <span class="copy">
-            <small>RENOVA IA</small>
-            <strong>Assistente Financeiro IA</strong>
-          </span>
-        </a>
-        """,
-        unsafe_allow_html=True,
-    )
+def floating_ai_button() -> bool:
+    with st.container(key="renova_ai_fab"):
+        return st.button(
+            "🤖 Assistente Financeiro IA",
+            key="open_renova_ai_dialog",
+            help="Abrir o chat da RENOVA IA sem sair desta página",
+        )
 
 
 
