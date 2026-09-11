@@ -25,6 +25,14 @@ def _install_recurring_finance_runtime() -> None:
     install_recurring_runtime(_repository)
 
 
+def _install_recurring_ai_runtime() -> None:
+    """Ensina a RENOVA IA a criar recorrências e consultar projeções de caixa."""
+    from . import ai_finance as _ai_finance
+    from .recurring_ai_runtime import install_recurring_ai_runtime
+
+    install_recurring_ai_runtime(_ai_finance)
+
+
 def _install_theme_mode_runtime() -> None:
     """Acopla tema, layout responsivo e atalhos globais da identidade RENOVA."""
     import streamlit as st
@@ -106,4 +114,5 @@ def _install_theme_mode_runtime() -> None:
 _install_public_entry_runtime()
 _install_ai_training_runtime()
 _install_recurring_finance_runtime()
+_install_recurring_ai_runtime()
 _install_theme_mode_runtime()
