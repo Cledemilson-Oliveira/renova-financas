@@ -182,6 +182,29 @@ p,label,.stCaption{color:var(--rv-muted)!important}
 }
 [data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) p{color:#FFE477!important;font-weight:950!important}
 
+/* MENU MOBILE RENOVA: substitui completamente a sidebar em telas pequenas */
+#renova-mobile-nav{display:none}
+#renova-mobile-nav .rv-mobile-nav-inner{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;
+  border:1px solid rgba(255,215,90,.42);
+  border-radius:16px;
+  background:linear-gradient(145deg,rgba(4,17,28,.98),rgba(2,8,14,.99));
+  box-shadow:0 16px 40px rgba(0,0,0,.46),0 0 24px rgba(0,174,239,.13);
+  backdrop-filter:blur(18px);
+}
+#renova-mobile-nav .rv-mobile-brand{
+  flex:0 0 auto;color:#EAF7FF;font-size:.70rem;font-weight:950;line-height:1.05;letter-spacing:.02em;
+}
+#renova-mobile-nav .rv-mobile-brand span{display:block;color:#FFD75A;font-size:.62rem;margin-top:3px}
+#renova-mobile-nav select{
+  min-width:0;flex:1;height:46px;padding:0 36px 0 12px;
+  border:1px solid rgba(0,174,239,.44);border-radius:12px;
+  background:#06131F;color:#F7FBFF;font-weight:900;font-size:.88rem;
+  box-shadow:inset 0 0 18px rgba(0,174,239,.04);outline:none;
+}
+#renova-mobile-nav select:focus{border-color:#FFD75A;box-shadow:0 0 0 2px rgba(255,215,90,.10)}
+
 /* HERO */
 .renova-hero{
   position:relative;
@@ -372,12 +395,22 @@ body:has(input[aria-label="Senha"]) [data-testid="stForm"]{
 
 /* CONTROLES STREAMLIT */
 [data-testid="stSidebarCollapseButton"] button,[data-testid="stSidebarCollapsedControl"] button,[data-testid="collapsedControl"] button{
-  border-radius:12px!important;border:1px solid rgba(255,215,90,.60)!important;
+  min-width:42px!important;min-height:42px!important;
+  border-radius:12px!important;border:1px solid rgba(255,215,90,.76)!important;
   background:linear-gradient(145deg,#071C2D,#03101A)!important;color:var(--rv-gold)!important;
-  box-shadow:0 8px 22px rgba(0,0,0,.35),0 0 15px rgba(0,174,239,.16)!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.35),0 0 18px rgba(0,174,239,.22)!important;
+  opacity:1!important;visibility:visible!important;
 }
 [data-testid="stSidebarCollapseButton"] svg,[data-testid="stSidebarCollapsedControl"] svg,[data-testid="collapsedControl"] svg{
   color:var(--rv-gold)!important;fill:var(--rv-gold)!important;stroke:var(--rv-gold)!important;
+  width:22px!important;height:22px!important;
+}
+@media(min-width:901px){
+  [data-testid="stSidebarCollapseButton"],
+  [data-testid="stSidebarCollapsedControl"],
+  [data-testid="collapsedControl"]{
+    visibility:visible!important;opacity:1!important;z-index:10002!important;
+  }
 }
 
 /* HUD AMBIENTE */
@@ -418,7 +451,23 @@ body:has(input[aria-label="Senha"]) [data-testid="stForm"]{
 }
 .st-key-renova_ai_fab button *{color:#FFE477!important;-webkit-text-fill-color:#FFE477!important}
 
-@media(max-width:768px){
+@media(max-width:900px){
+  /* Mobile usa menu suspenso próprio; sidebar e seus controles deixam de ocupar a tela. */
+  [data-testid="stSidebar"],
+  [data-testid="stSidebarCollapsedControl"],
+  [data-testid="stSidebarCollapseButton"],
+  [data-testid="collapsedControl"]{display:none!important}
+
+  body.renova-mobile-menu-active #renova-mobile-nav{
+    display:block!important;
+    position:fixed!important;
+    top:8px!important;left:8px!important;right:8px!important;
+    z-index:10050!important;
+  }
+  body.renova-mobile-menu-active [data-testid="stMainBlockContainer"]{
+    padding-top:6.15rem!important;
+  }
+
   .sales-hero{padding:42px 18px 34px;border-radius:20px}
   .sales-hero h1{font-size:2.45rem!important}
   .sales-lead{font-size:.94rem!important}
@@ -428,7 +477,7 @@ body:has(input[aria-label="Senha"]) [data-testid="stForm"]{
   .sales-section,.pricing-section,.sales-final{padding:30px 6px}
 
   .stApp{background-size:32px 32px,32px 32px,auto,auto,auto,auto!important}
-  [data-testid="stMainBlockContainer"]{padding:1rem 1rem 4.5rem!important}
+  [data-testid="stMainBlockContainer"]{padding-left:1rem!important;padding-right:1rem!important;padding-bottom:4.5rem!important}
   .renova-hero{padding:24px 18px 20px;border-radius:18px}
   .renova-hero:before{font-size:.54rem;letter-spacing:.11em}
   .renova-hero h1{font-size:1.78rem!important}
@@ -450,6 +499,13 @@ body:has(input[aria-label="Senha"]) [data-testid="stForm"]{
   }
 }
 
+@media(max-width:430px){
+  #renova-mobile-nav .rv-mobile-brand{font-size:.62rem}
+  #renova-mobile-nav .rv-mobile-brand span{font-size:.56rem}
+  #renova-mobile-nav select{font-size:.80rem;padding-left:9px}
+  #renova-mobile-nav .rv-mobile-nav-inner{gap:8px;padding:9px}
+}
+
 [data-testid="stDialog"]>div{
   border:1px solid rgba(255,215,90,.35)!important;
   background:linear-gradient(145deg,rgba(4,17,28,.99),rgba(2,8,14,.99))!important;
@@ -468,6 +524,142 @@ body:has(input[aria-label="Senha"]) [data-testid="stForm"]{
 </style>
         """,
         unsafe_allow_html=True,
+    )
+    install_mobile_navigation()
+
+
+def install_mobile_navigation() -> None:
+    """Install a resilient mobile dropdown that mirrors the sidebar navigation."""
+    components.html(
+        """
+        <script>
+        (function () {
+          const win = window.parent;
+          const doc = win.document;
+          const ROOT_ID = 'renova-mobile-nav';
+          const MOBILE_MAX = 900;
+          const icons = {
+            'Dashboard':'🏠',
+            'Lançamentos':'💸',
+            'Categorias':'🏷️',
+            'Contas':'🏦',
+            'Cartões':'💳',
+            'Orçamentos':'🎯',
+            'Análises':'📊',
+            'Relatórios':'📄',
+            'RENOVA IA':'🤖',
+            'Treinamento IA':'🧠',
+            'Assinar RENOVA IA':'⭐'
+          };
+
+          function isMobile() {
+            return win.innerWidth <= MOBILE_MAX;
+          }
+
+          function items() {
+            return Array.from(doc.querySelectorAll(
+              '[data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"]'
+            )).map(function (label) {
+              const input = label.querySelector('input');
+              const textNode = label.querySelector('p');
+              const text = (textNode ? textNode.textContent : label.textContent || '').trim();
+              return {label: label, input: input, text: text};
+            }).filter(function (item) { return item.text; });
+          }
+
+          function removeMenu() {
+            const old = doc.getElementById(ROOT_ID);
+            if (old) old.remove();
+            doc.body.classList.remove('renova-mobile-menu-active');
+          }
+
+          function mount() {
+            if (!isMobile()) {
+              removeMenu();
+              return;
+            }
+
+            const navItems = items();
+            if (!navItems.length) {
+              removeMenu();
+              return;
+            }
+
+            let root = doc.getElementById(ROOT_ID);
+            if (!root) {
+              root = doc.createElement('div');
+              root.id = ROOT_ID;
+              root.innerHTML = `
+                <div class="rv-mobile-nav-inner">
+                  <div class="rv-mobile-brand">RENOVA<span>FINANÇAS</span></div>
+                  <select id="renova-mobile-nav-select" aria-label="Menu principal RENOVA Finanças"></select>
+                </div>`;
+              doc.body.appendChild(root);
+            }
+
+            const select = root.querySelector('#renova-mobile-nav-select');
+            if (!select) return;
+
+            const signature = navItems.map(function (item) { return item.text; }).join('|');
+            if (select.dataset.signature !== signature) {
+              select.innerHTML = '';
+              navItems.forEach(function (item) {
+                const option = doc.createElement('option');
+                option.value = item.text;
+                option.textContent = (icons[item.text] || '•') + '  ' + item.text;
+                select.appendChild(option);
+              });
+              select.dataset.signature = signature;
+            }
+
+            const active = navItems.find(function (item) {
+              return item.input && item.input.checked;
+            });
+            if (active && select.value !== active.text) {
+              select.value = active.text;
+            }
+
+            if (select.dataset.bound !== '1') {
+              select.addEventListener('change', function () {
+                const target = items().find(function (item) {
+                  return item.text === select.value;
+                });
+                if (target && target.label) {
+                  target.label.click();
+                }
+              });
+              select.dataset.bound = '1';
+            }
+
+            doc.body.classList.add('renova-mobile-menu-active');
+          }
+
+          if (win.__renovaMobileNavTimer) {
+            win.clearInterval(win.__renovaMobileNavTimer);
+          }
+          if (win.__renovaMobileNavResizeHandler) {
+            win.removeEventListener('resize', win.__renovaMobileNavResizeHandler);
+          }
+
+          win.__renovaMobileNavResizeHandler = mount;
+          win.addEventListener('resize', win.__renovaMobileNavResizeHandler);
+
+          mount();
+          setTimeout(mount, 120);
+          setTimeout(mount, 350);
+          setTimeout(mount, 800);
+          win.__renovaMobileNavTimer = win.setInterval(mount, 900);
+          setTimeout(function () {
+            if (win.__renovaMobileNavTimer) {
+              win.clearInterval(win.__renovaMobileNavTimer);
+              win.__renovaMobileNavTimer = null;
+            }
+          }, 12000);
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
     )
 
 
@@ -489,7 +681,6 @@ def brand_block() -> None:
     )
 
 
-
 def floating_ai_button() -> bool:
     with st.container(key="renova_ai_fab"):
         return st.button(
@@ -499,15 +690,15 @@ def floating_ai_button() -> bool:
         )
 
 
-
 def auto_collapse_sidebar() -> None:
-    """Collapse the Streamlit sidebar after a navigation choice."""
+    """Collapse the desktop sidebar after a navigation choice when possible."""
     components.html(
         """
         <script>
         (function () {
           const doc = window.parent.document;
           const isMobile = window.parent.innerWidth <= 900;
+          if (isMobile) return;
 
           function collapse() {
             const sidebar = doc.querySelector('[data-testid="stSidebar"]');
@@ -531,10 +722,8 @@ def auto_collapse_sidebar() -> None:
             }
           }
 
-          // Mobile: always close after navigation. Desktop: also close when
-          // explicitly triggered, keeping the interface focused on content.
-          setTimeout(collapse, isMobile ? 120 : 180);
-          setTimeout(collapse, isMobile ? 420 : 520);
+          setTimeout(collapse, 180);
+          setTimeout(collapse, 520);
         })();
         </script>
         """,
