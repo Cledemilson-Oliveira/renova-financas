@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.visual_system import RENOVA_LOGO_URL, configure_plotly
 
@@ -448,4 +449,48 @@ def floating_ai_button() -> None:
         </a>
         """,
         unsafe_allow_html=True,
+    )
+
+
+
+def auto_collapse_sidebar() -> None:
+    """Collapse the Streamlit sidebar after a navigation choice."""
+    components.html(
+        """
+        <script>
+        (function () {
+          const doc = window.parent.document;
+          const isMobile = window.parent.innerWidth <= 900;
+
+          function collapse() {
+            const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+            if (!sidebar) return;
+
+            const visible = sidebar.getBoundingClientRect().width > 40;
+            if (!visible) return;
+
+            const candidates = [
+              '[data-testid="stSidebarCollapseButton"] button',
+              '[data-testid="stSidebarCollapseButton"]',
+              'button[kind="header"]'
+            ];
+
+            for (const selector of candidates) {
+              const button = doc.querySelector(selector);
+              if (button) {
+                button.click();
+                return;
+              }
+            }
+          }
+
+          // Mobile: always close after navigation. Desktop: also close when
+          // explicitly triggered, keeping the interface focused on content.
+          setTimeout(collapse, isMobile ? 120 : 180);
+          setTimeout(collapse, isMobile ? 420 : 520);
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
     )
