@@ -19,9 +19,37 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q app.py src pages
       - name: Import modules
-        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.ai_training_runtime, src.training_ingest, src.urgencies"
-      - name: Validate AI training runtime
-        run: python -c "import src.ai_finance as m; assert getattr(m, '_renova_training_runtime_installed', False), 'Treinamento da IA não conectado ao processador'"
+        run: python -c "import src.access_control, src.data, src.repository, src.supabase_client, src.theme, src.ai_free_training, src.ai_training_runtime, src.training_ingest, src.urgencies"
+      - name: Validate AI training runtimes
+        run: |
+          python - <<'PY'
+          import src.ai_finance as m
+          assert getattr(m, '_renova_training_runtime_installed', False), 'Treinamento personalizado não conectado ao processador'
+          assert getattr(m, '_renova_free_training_installed', False), 'Treinamento padrão gratuito não conectado ao processador'
+          PY
+      - name: Validate free AI standard training
+        run: |
+          python - <<'PY'
+          from datetime import date
+          import src.ai_finance as ai
+          import src.ai_free_training as free
+
+          assert free._extract_standard_amount('gastei R$ 85 no mercado', ai._norm) == 85.0
+          assert free._extract_standard_amount('conta de luz R$ 180 vence dia 15', ai._norm) == 180.0
+          assert free._extract_standard_amount('recebi R$ 1.500,00 hoje', ai._norm) == 1500.0
+
+          due = free._extract_due_date('conta de luz R$ 180 vence dia 15', ai._norm)
+          assert due is not None and due.day == 15
+          assert due >= date.today()
+
+          required = {
+              'registrar receitas',
+              'registrar despesas pagas ou pendentes',
+              'analisar urgências financeiras',
+              'marcar contas como pagas',
+          }
+          assert required.issubset(set(free.STANDARD_CAPABILITIES))
+          PY
       - name: Validate urgency engine
         run: |
           python - <<'PY'

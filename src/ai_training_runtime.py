@@ -4,6 +4,8 @@ import re
 import unicodedata
 from typing import Any
 
+from src.ai_free_training import process_standard_message
+
 
 _MEMORY_QUERY_TERMS = (
     "o que voce sabe",
@@ -82,7 +84,7 @@ def _context_block(items: list[dict[str, Any]], limit: int = 4) -> str:
 def _memory_answer(items: list[dict[str, Any]]) -> str:
     if not items:
         return (
-            "🧠 Ainda não encontrei treinamentos ativos relacionados a esse pedido. "
+            "🧠 Ainda não encontrei treinamentos personalizados ativos relacionados a esse pedido. "
             "Você pode adicionar conhecimentos no módulo **Treinamento da IA**."
         )
     return (
@@ -149,8 +151,26 @@ def _structured_rule_titles(items: list[dict[str, Any]], message: str) -> list[s
     return applied[:3]
 
 
+def _personalized_training_enabled(bundle: dict[str, Any], user_id: str) -> bool:
+    """O app informa o tier da sessão; o fallback atende usos fora da UI."""
+    if "_allow_personalized_training" in bundle:
+        return bool(bundle.get("_allow_personalized_training"))
+
+    try:
+        from src.access import is_owner
+        from src.repository import has_active_ai_subscription
+
+        return bool(is_owner(user_id) or has_active_ai_subscription(user_id))
+    except Exception:
+        return False
+
+
 def install_training_runtime(ai_finance_module: Any, ai_training_module: Any) -> None:
-    """Conecta o treinamento persistido ao processador financeiro sem alterar as barreiras de segurança."""
+    """Conecta os dois níveis de treinamento ao processador financeiro.
+
+    - Gratuito: treinamento operacional fixo do produto, sem memória personalizada.
+    - Premium/dono: mesmo núcleo financeiro + regras, memória e materiais privados.
+    """
     if getattr(ai_finance_module, "_renova_training_runtime_installed", False):
         return
 
@@ -158,6 +178,9 @@ def install_training_runtime(ai_finance_module: Any, ai_training_module: Any) ->
     reply_type = ai_finance_module.AIReply
 
     def trained_process_message(user_id: str, message: str, bundle: dict[str, Any]):
+        if not _personalized_training_enabled(bundle, user_id):
+            return process_standard_message(ai_finance_module, user_id, message, bundle)
+
         try:
             items = ai_training_module.relevant_training_items(user_id, message, limit=8)
         except Exception:
@@ -226,3 +249,4 @@ def install_training_runtime(ai_finance_module: Any, ai_training_module: Any) ->
 
     ai_finance_module.process_message = trained_process_message
     ai_finance_module._renova_training_runtime_installed = True
+    ai_finance_module._renova_free_training_installed = True
