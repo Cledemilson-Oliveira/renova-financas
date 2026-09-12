@@ -605,6 +605,85 @@ html,body,.stApp{background:#061426!important;color:#F5FAFF!important}
 #renova-mobile-nav .rv-mobile-brand span{color:#19D9FF!important}
 #renova-mobile-nav .rv-mobile-nav-inner{border-color:rgba(25,217,255,.42)!important}
 
+/* ========================================================================
+   MOBILE V3 • contraste leve + menu de módulos nativo sempre acessível
+   ======================================================================== */
+.st-key-renova_fin_mobile_nav{display:none!important}
+
+@media(max-width:900px){
+  /* A navegação mobile não depende mais da sidebar ou de injeção JavaScript. */
+  #renova-mobile-nav{display:none!important}
+  .st-key-renova_fin_mobile_nav{
+    display:block!important;
+    position:fixed!important;
+    top:8px!important;left:10px!important;right:10px!important;
+    z-index:10050!important;
+    margin:0!important;
+    filter:drop-shadow(0 10px 24px rgba(2,12,24,.32))!important;
+  }
+  .st-key-renova_fin_mobile_nav button{
+    width:100%!important;min-height:52px!important;
+    border-radius:15px!important;
+    border:1px solid rgba(25,217,255,.58)!important;
+    background:linear-gradient(135deg,#123A5D 0%,#0F3150 55%,#17365D 100%)!important;
+    color:#F8FCFF!important;-webkit-text-fill-color:#F8FCFF!important;
+    font-size:.88rem!important;font-weight:950!important;
+    box-shadow:0 10px 24px rgba(0,0,0,.24),0 0 18px rgba(25,217,255,.11),inset 0 1px rgba(255,255,255,.08)!important;
+  }
+  .st-key-renova_fin_mobile_nav button *{
+    color:#F8FCFF!important;-webkit-text-fill-color:#F8FCFF!important;font-weight:950!important;
+  }
+  [data-testid="stMainBlockContainer"]{
+    padding-top:5.45rem!important;
+  }
+
+  /* Superfícies menos pesadas: azul intermediário, borda leve e sombra externa. */
+  .metric-card,
+  div[data-testid="stMetric"],
+  [data-testid="stExpander"],
+  [data-testid="stPlotlyChart"],
+  [data-testid="stDataFrame"],
+  [data-testid="stForm"]{
+    border-color:rgba(64,207,255,.30)!important;
+    background:
+      radial-gradient(circle at 92% 7%,rgba(25,217,255,.10),transparent 29%),
+      linear-gradient(145deg,rgba(18,52,82,.96),rgba(12,38,64,.95))!important;
+    box-shadow:
+      0 10px 24px rgba(1,13,27,.26),
+      0 0 18px rgba(25,217,255,.075),
+      inset 0 1px rgba(255,255,255,.055)!important;
+  }
+  .metric-card{min-height:102px!important;padding:15px 16px!important}
+  .metric-card .label,div[data-testid="stMetric"] label{color:#C8DDEB!important}
+  .metric-card .hint{color:#71E6FF!important}
+  .metric-card .value,div[data-testid="stMetric"] [data-testid="stMetricValue"]{
+    color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;
+    text-shadow:0 1px 16px rgba(25,217,255,.08)!important;
+  }
+
+  .renova-hero{
+    border-color:rgba(64,207,255,.32)!important;
+    background:
+      linear-gradient(rgba(25,217,255,.026) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(25,217,255,.026) 1px,transparent 1px),
+      radial-gradient(circle at 88% 12%,rgba(25,217,255,.13),transparent 30%),
+      linear-gradient(135deg,#123A5D 0%,#0E2D4B 55%,#0B2540 100%)!important;
+    box-shadow:0 12px 28px rgba(1,13,27,.28),0 0 18px rgba(25,217,255,.08)!important;
+  }
+
+  [data-baseweb="tab-list"]{
+    background:linear-gradient(145deg,#123A5D,#0E2D4B)!important;
+    border-color:rgba(64,207,255,.28)!important;
+    box-shadow:0 8px 20px rgba(1,13,27,.20)!important;
+  }
+
+  [data-testid="stAlert"]{
+    background:linear-gradient(135deg,rgba(18,52,82,.96),rgba(12,38,64,.96))!important;
+    border-color:rgba(64,207,255,.28)!important;
+    box-shadow:0 8px 20px rgba(1,13,27,.20),inset 3px 0 rgba(25,217,255,.22)!important;
+  }
+}
+
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;scroll-behavior:auto!important;transition:none!important}
 }
@@ -612,7 +691,7 @@ html,body,.stApp{background:#061426!important;color:#F5FAFF!important}
         """,
         unsafe_allow_html=True,
     )
-    install_mobile_navigation()
+    # O menu mobile é renderizado nativamente no app.py para maior estabilidade.
 
 
 def install_mobile_navigation() -> None:

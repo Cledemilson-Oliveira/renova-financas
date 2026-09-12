@@ -1402,6 +1402,47 @@ NAV_PAGES = [
 if "nav_page" not in st.session_state:
     st.session_state.nav_page = "Dashboard"
 
+
+def render_mobile_modules_menu() -> None:
+    """Menu mobile nativo e sempre visível, sem depender de JavaScript injetado."""
+    mobile_icons = {
+        "Dashboard": "🏠",
+        "Lançamentos": "💸",
+        "Categorias": "🏷️",
+        "Contas": "🏦",
+        "Cartões": "💳",
+        "Orçamentos": "🎯",
+        "Análises": "📊",
+        "Relatórios": "📄",
+        "RENOVA IA": "🤖",
+        "Treinamento IA": "🧠",
+        "Assinar RENOVA IA": "⭐",
+    }
+    current = str(st.session_state.get("nav_page") or "Dashboard")
+    current_icon = mobile_icons.get(current, "•")
+
+    with st.container(key="renova_fin_mobile_nav"):
+        with st.popover(
+            f"☰  MÓDULOS  •  {current_icon} {current}",
+            use_container_width=True,
+        ):
+            st.markdown("**NAVEGAÇÃO RENOVA FINANÇAS**")
+            st.caption("Escolha o módulo que deseja abrir.")
+            for destination in NAV_PAGES:
+                icon = mobile_icons.get(destination, "•")
+                if st.button(
+                    f"{icon}  {destination}",
+                    key=f"mobile_module_{destination}",
+                    use_container_width=True,
+                    type="primary" if destination == current else "secondary",
+                ):
+                    st.session_state.nav_page = destination
+                    st.session_state._last_nav_page = destination
+                    st.rerun()
+
+
+render_mobile_modules_menu()
+
 with st.sidebar:
     brand_block()
     render_sidebar_profile()
