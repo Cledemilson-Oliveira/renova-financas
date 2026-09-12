@@ -43,6 +43,7 @@ from src.supabase_client import (
 from src.theme import apply_renova_theme, auto_collapse_sidebar, brand_block, floating_ai_button
 from src.ai_finance import confirm_pending_action, process_message
 from src.urgencies import analyze_financial_urgencies, urgency_summary
+from src.ui.device import current_device
 
 
 st.set_page_config(
@@ -53,7 +54,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.12.6"
+APP_BUILD = "2026.09.12.7"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -389,6 +390,13 @@ def render_mobile_modules_menu() -> None:
                 ):
                     st.session_state.nav_page = destination
                     st.session_state._last_nav_page = destination
+                    st.rerun()
+
+            if REAL_MODE:
+                st.divider()
+                st.caption(f"Build {APP_BUILD}")
+                if st.button("↪ Sair", key="mobile_logout", use_container_width=True):
+                    sign_out()
                     st.rerun()
 
 
@@ -2033,33 +2041,38 @@ def render_sidebar_profile() -> None:
     )
 
 
-with st.sidebar:
-    brand_block()
-    render_sidebar_profile()
-    st.caption("MENU PRINCIPAL")
-    previous_page = st.session_state.get("_last_nav_page", st.session_state.nav_page)
-    page = st.radio(
-        "Navegação",
-        NAV_PAGES,
-        key="nav_page",
-        label_visibility="collapsed",
-    )
-    if page != previous_page:
-        st.session_state._last_nav_page = page
-        auto_collapse_sidebar()
-    else:
-        st.session_state._last_nav_page = page
-    st.divider()
-    if REAL_MODE:
-        user = current_user()
-        if user:
-            st.caption(f"Sistema conectado • Build {APP_BUILD}")
-        if st.button("Sair", use_container_width=True):
-            sign_out()
-            st.rerun()
-    else:
-        st.warning("Modo demonstração")
-        st.caption("Configure SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY no Streamlit Secrets.")
+if current_device() == "mobile":
+    # Mobile não constrói a sidebar desktop escondida. O estado de navegação é
+    # controlado exclusivamente pelo menu suspenso no topo.
+    page = str(st.session_state.get("nav_page") or "Dashboard")
+else:
+    with st.sidebar:
+        brand_block()
+        render_sidebar_profile()
+        st.caption("MENU PRINCIPAL")
+        previous_page = st.session_state.get("_last_nav_page", st.session_state.nav_page)
+        page = st.radio(
+            "Navegação",
+            NAV_PAGES,
+            key="nav_page",
+            label_visibility="collapsed",
+        )
+        if page != previous_page:
+            st.session_state._last_nav_page = page
+            auto_collapse_sidebar()
+        else:
+            st.session_state._last_nav_page = page
+        st.divider()
+        if REAL_MODE:
+            user = current_user()
+            if user:
+                st.caption(f"Sistema conectado • Build {APP_BUILD}")
+            if st.button("Sair", use_container_width=True):
+                sign_out()
+                st.rerun()
+        else:
+            st.warning("Modo demonstração")
+            st.caption("Configure SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY no Streamlit Secrets.")
 
 if page == "Treinamento IA":
     st.switch_page("pages/Treinamento_IA.py")
