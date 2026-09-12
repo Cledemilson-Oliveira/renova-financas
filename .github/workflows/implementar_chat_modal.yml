@@ -1,0 +1,42 @@
+name: RENOVA Finanças Implementar Modal de Chat
+
+on:
+  push:
+    paths:
+      - 'scripts/implementar_chat_modal.py'
+      - '.github/workflows/implementar_chat_modal.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Aplicar novo modal de chat
+        run: python scripts/implementar_chat_modal.py
+      - name: Validar sintaxe
+        run: python -m py_compile app.py
+      - name: Validar estrutura do novo chat
+        run: |
+          grep -q 'ai_chat_modal_shell' app.py
+          grep -q 'Nova conversa' app.py
+          grep -q 'RENOVA IA Financeira' app.py
+          grep -q 'stChatMessageAvatarUser' app.py
+          grep -q 'APP_BUILD = "2026.09.12.2"' app.py
+      - name: Publicar implementação
+        run: |
+          if git diff --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+          git config user.name 'RENOVA Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app.py
+          git commit -m 'feat(ui): implementar modal de chat estilo ChatGPT WhatsApp'
+          git push
