@@ -76,10 +76,14 @@ def render_ecosystem_card() -> None:
     st.markdown(
         f"""
         <style>
+        /* O card institucional deve permanecer visualmente como o último bloco da sidebar. */
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > div:has(.renova-company-card){{
+          order:9999!important;
+        }}
         .renova-company-card{{
           position:relative;
           overflow:hidden;
-          margin:12px 2px 8px;
+          margin:14px 2px 8px;
           padding:15px;
           border-radius:17px;
           border:1px solid rgba(25,217,255,.34);
