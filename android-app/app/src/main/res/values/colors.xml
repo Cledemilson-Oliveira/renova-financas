@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="renova_navy">#04131F</color>
+    <color name="renova_blue">#0A2A48</color>
+    <color name="renova_cyan">#00AEEF</color>
+    <color name="renova_gold">#FFD75A</color>
+    <color name="renova_surface">#F6FBFF</color>
+    <color name="renova_text_secondary">#B8D4E6</color>
+    <color name="white">#FFFFFF</color>
+</resources>
