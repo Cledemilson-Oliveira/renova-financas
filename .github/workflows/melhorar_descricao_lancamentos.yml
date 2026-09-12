@@ -1,0 +1,41 @@
+name: RENOVA Finanças Melhorar Descrição Lançamentos
+
+on:
+  push:
+    paths:
+      - 'scripts/melhorar_descricao_lancamentos.py'
+      - '.github/workflows/melhorar_descricao_lancamentos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Aplicar melhoria nos modais de lançamento
+        run: python scripts/melhorar_descricao_lancamentos.py
+      - name: Validar sintaxe
+        run: python -m py_compile app.py
+      - name: Validar campos de descrição
+        run: |
+          grep -q 'Descrição / origem da receita' app.py
+          grep -q 'Descrição / destino da despesa' app.py
+          grep -q 'Salário empresa X' app.py
+          grep -q 'Mercado Central' app.py
+      - name: Publicar melhoria
+        run: |
+          if git diff --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+          git config user.name 'RENOVA Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app.py
+          git commit -m 'fix(ui): destacar descrição nos modais de receita e despesa'
+          git push
