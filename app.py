@@ -335,6 +335,67 @@ if REAL_MODE and not is_authenticated():
     render_auth()
     st.stop()
 
+
+NAV_PAGES = [
+    "Dashboard",
+    "Lançamentos",
+    "Categorias",
+    "Contas",
+    "Cartões",
+    "Orçamentos",
+    "Análises",
+    "Relatórios",
+    "RENOVA IA",
+    "Treinamento IA",
+    "Assinar RENOVA IA",
+]
+
+if "nav_page" not in st.session_state:
+    st.session_state.nav_page = "Dashboard"
+
+
+def render_mobile_modules_menu() -> None:
+    """Navegação mobile leve, exibida antes das consultas financeiras."""
+    mobile_icons = {
+        "Dashboard": "🏠",
+        "Lançamentos": "💸",
+        "Categorias": "🏷️",
+        "Contas": "🏦",
+        "Cartões": "💳",
+        "Orçamentos": "🎯",
+        "Análises": "📊",
+        "Relatórios": "📄",
+        "RENOVA IA": "🤖",
+        "Treinamento IA": "🧠",
+        "Assinar RENOVA IA": "⭐",
+    }
+    current = str(st.session_state.get("nav_page") or "Dashboard")
+    current_icon = mobile_icons.get(current, "•")
+
+    with st.container(key="renova_fin_mobile_nav"):
+        with st.popover(
+            f"☰  MÓDULOS  •  {current_icon} {current}",
+            use_container_width=True,
+        ):
+            st.markdown("**NAVEGAÇÃO RENOVA FINANÇAS**")
+            st.caption("Escolha o módulo que deseja abrir.")
+            for destination in NAV_PAGES:
+                icon = mobile_icons.get(destination, "•")
+                if st.button(
+                    f"{icon}  {destination}",
+                    key=f"mobile_module_{destination}",
+                    use_container_width=True,
+                    type="primary" if destination == current else "secondary",
+                ):
+                    st.session_state.nav_page = destination
+                    st.session_state._last_nav_page = destination
+                    st.rerun()
+
+
+# Renderiza cedo: o usuário enxerga o menu mesmo enquanto os dados financeiros
+# são carregados. No desktop o CSS mantém este bloco oculto.
+render_mobile_modules_menu()
+
 if REAL_MODE:
     session_user = current_user()
     session_user_id = str(session_user.id) if session_user else ""
@@ -1971,64 +2032,6 @@ def render_sidebar_profile() -> None:
         unsafe_allow_html=True,
     )
 
-
-NAV_PAGES = [
-    "Dashboard",
-    "Lançamentos",
-    "Categorias",
-    "Contas",
-    "Cartões",
-    "Orçamentos",
-    "Análises",
-    "Relatórios",
-    "RENOVA IA",
-    "Treinamento IA",
-    "Assinar RENOVA IA",
-]
-
-if "nav_page" not in st.session_state:
-    st.session_state.nav_page = "Dashboard"
-
-
-def render_mobile_modules_menu() -> None:
-    """Menu mobile nativo e sempre visível, sem depender de JavaScript injetado."""
-    mobile_icons = {
-        "Dashboard": "🏠",
-        "Lançamentos": "💸",
-        "Categorias": "🏷️",
-        "Contas": "🏦",
-        "Cartões": "💳",
-        "Orçamentos": "🎯",
-        "Análises": "📊",
-        "Relatórios": "📄",
-        "RENOVA IA": "🤖",
-        "Treinamento IA": "🧠",
-        "Assinar RENOVA IA": "⭐",
-    }
-    current = str(st.session_state.get("nav_page") or "Dashboard")
-    current_icon = mobile_icons.get(current, "•")
-
-    with st.container(key="renova_fin_mobile_nav"):
-        with st.popover(
-            f"☰  MÓDULOS  •  {current_icon} {current}",
-            use_container_width=True,
-        ):
-            st.markdown("**NAVEGAÇÃO RENOVA FINANÇAS**")
-            st.caption("Escolha o módulo que deseja abrir.")
-            for destination in NAV_PAGES:
-                icon = mobile_icons.get(destination, "•")
-                if st.button(
-                    f"{icon}  {destination}",
-                    key=f"mobile_module_{destination}",
-                    use_container_width=True,
-                    type="primary" if destination == current else "secondary",
-                ):
-                    st.session_state.nav_page = destination
-                    st.session_state._last_nav_page = destination
-                    st.rerun()
-
-
-render_mobile_modules_menu()
 
 with st.sidebar:
     brand_block()
