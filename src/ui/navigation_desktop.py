@@ -4,6 +4,8 @@ from collections.abc import Sequence
 
 import streamlit as st
 
+from ..sidebar_sections import render_ecosystem_card, render_sidebar_appearance
+
 
 NAV_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("🏠 INÍCIO", ("Dashboard",)),
@@ -103,5 +105,11 @@ def render_desktop_navigation(options: Sequence[str], current: str) -> str:
                 ):
                     _go_to(page)
                     st.rerun()
+
+    # Estrutura fixa da sidebar desktop:
+    # marca -> usuário -> navegação -> aparência/sistema -> Ecossistema RENOVA.
+    st.divider()
+    render_sidebar_appearance()
+    render_ecosystem_card()
 
     return str(st.session_state.get("nav_page") or current)
