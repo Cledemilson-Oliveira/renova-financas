@@ -51,7 +51,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.12.3"
+APP_BUILD = "2026.09.12.4"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -534,6 +534,19 @@ def _render_quick_transaction_dialog(kind_db: str) -> None:
             key=f"quick_{kind_db}_amount",
         )
 
+    description_label = "Descrição / origem da receita" if is_income else "Descrição / destino da despesa"
+    description_placeholder = (
+        "Ex.: Salário empresa X, comissão cliente Y..."
+        if is_income
+        else "Ex.: Mercado Central, aluguel, combustível..."
+    )
+    description = st.text_input(
+        description_label,
+        placeholder=description_placeholder,
+        key=f"quick_{kind_db}_description",
+        help="Identifique de onde veio a receita ou onde foi feita a despesa para facilitar consultas e relatórios.",
+    )
+
     due_date = None
     status_db = "pago"
     if not is_income:
@@ -560,12 +573,6 @@ def _render_quick_transaction_dialog(kind_db: str) -> None:
             placeholder="Ex.: Ferramentas, Comissão, Manutenção...",
             key=f"quick_{kind_db}_custom_category",
         )
-
-    description = st.text_input(
-        "Descrição",
-        placeholder="Descreva o lançamento",
-        key=f"quick_{kind_db}_description",
-    )
 
     if st.button(
         f"{'💰' if is_income else '💸'} SALVAR {kind_label.upper()}",
