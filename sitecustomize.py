@@ -8,11 +8,16 @@ Python e aplica um cache curto, por usuário, apenas às leituras.
 Também ajusta especificamente o chat modal do Assistente Financeiro IA para ter
 comportamento de aplicativo de mensagens: histórico rolável, campo de entrada
 preso ao rodapé e posicionamento automático na mensagem mais recente.
+
+Na tabela de lançamentos, as células passam a ser editáveis diretamente e as
+alterações são persistidas no Supabase automaticamente, sem exigir o modal de
+edição.
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import date
 from functools import wraps
 from threading import RLock
 from time import monotonic
@@ -137,7 +142,6 @@ def _install_modal_chat_ux() -> None:
 
     modal_css = r"""
     <style>
-    /* Janela do Assistente Financeiro IA */
     div[role="dialog"] {
       height: min(820px, 88vh) !important;
       max-height: 88vh !important;
@@ -147,7 +151,6 @@ def _install_modal_chat_ux() -> None:
       padding-bottom: 0 !important;
     }
 
-    /* Mantém o campo de digitação sempre visível no rodapé. */
     div[role="dialog"] [data-testid="stChatInput"] {
       position: sticky !important;
       bottom: 0 !important;
@@ -164,12 +167,10 @@ def _install_modal_chat_ux() -> None:
       box-shadow: 0 -10px 32px rgba(0,0,0,.28), 0 0 22px rgba(25,217,255,.08) !important;
     }
 
-    /* Reserva espaço para a última mensagem não ficar escondida atrás do input. */
     div[role="dialog"] [data-testid="stChatMessage"]:last-of-type {
       margin-bottom: 20px !important;
     }
 
-    /* O topo do diálogo permanece disponível enquanto o histórico rola. */
     div[role="dialog"] > div:first-child {
       position: sticky !important;
       top: 0 !important;
@@ -241,10 +242,229 @@ def _install_modal_chat_ux() -> None:
     st._renova_modal_chat_patched = True
 
 
+def _install_inline_transaction_editor() -> None:
+    """Permite editar lançamentos direto na grade e salva cada célula alterada."""
+    try:
+        import pandas as pd
+        import streamlit as st
+        import src.repository as repository
+    except Exception:
+        return
+
+    if getattr(st, "_renova_inline_transactions_patched", False):
+        return
+
+    original_data_editor = st.data_editor
+
+    def _is_blank(value: Any) -> bool:
+        try:
+            return value is None or pd.isna(value)
+        except Exception:
+            return value is None
+
+    def _as_date(value: Any) -> date | None:
+        if _is_blank(value):
+            return None
+        if isinstance(value, date):
+            return value
+        try:
+            return pd.to_datetime(value).date()
+        except Exception:
+            return None
+
+    def _as_amount(value: Any) -> float:
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+        text = str(value or "").strip().replace("R$", "").replace(" ", "")
+        if not text:
+            return 0.0
+        if "," in text:
+            text = text.replace(".", "").replace(",", ".")
+        return float(text)
+
+    def _same_text(a: Any, b: Any) -> bool:
+        return str(a or "").strip() == str(b or "").strip()
+
+    @wraps(original_data_editor)
+    def renova_data_editor(data, *args, **kwargs):
+        if kwargs.get("key") != "transactions_editor" or not isinstance(data, pd.DataFrame):
+            return original_data_editor(data, *args, **kwargs)
+
+        working = data.copy(deep=True)
+        if "valor" in working.columns:
+            working["valor"] = working["valor"].map(_as_amount)
+
+        categories = st.session_state.get("categories")
+        accounts = st.session_state.get("accounts")
+
+        category_names: list[str] = []
+        category_ids: dict[str, str] = {}
+        if isinstance(categories, pd.DataFrame) and not categories.empty:
+            category_view = categories.copy()
+            if "is_active" in category_view.columns:
+                category_view = category_view[category_view["is_active"] == True]
+            if "name" in category_view.columns:
+                category_names = sorted(category_view["name"].dropna().astype(str).unique().tolist())
+            if {"name", "id"}.issubset(category_view.columns):
+                category_ids = {
+                    str(row["name"]): str(row["id"])
+                    for _, row in category_view.iterrows()
+                }
+
+        account_names: list[str] = []
+        account_ids: dict[str, str] = {}
+        if isinstance(accounts, pd.DataFrame) and not accounts.empty:
+            account_view = accounts.copy()
+            if "ativo" in account_view.columns:
+                account_view = account_view[account_view["ativo"] == True]
+            if "conta" in account_view.columns:
+                account_names = account_view["conta"].dropna().astype(str).unique().tolist()
+            if {"conta", "id"}.issubset(account_view.columns):
+                account_ids = {
+                    str(row["conta"]): str(row["id"])
+                    for _, row in account_view.iterrows()
+                }
+
+        config = dict(kwargs.get("column_config") or {})
+        config.update(
+            {
+                "selecionar": st.column_config.CheckboxColumn(
+                    "✓", help="Marque para selecionar", default=False, width="small"
+                ),
+                "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY", width="small"),
+                "vencimento": st.column_config.DateColumn(
+                    "Vencimento", format="DD/MM/YYYY", width="small"
+                ),
+                "tipo": st.column_config.SelectboxColumn(
+                    "Tipo", options=["Receita", "Despesa"], required=True, width="small"
+                ),
+                "categoria": st.column_config.SelectboxColumn(
+                    "Categoria", options=category_names, required=True, width="medium"
+                ) if category_names else st.column_config.TextColumn("Categoria", width="medium"),
+                "descricao": st.column_config.TextColumn(
+                    "Descrição", required=True, width="large"
+                ),
+                "valor": st.column_config.NumberColumn(
+                    "Valor", min_value=0.01, step=0.01, format="R$ %.2f", width="small"
+                ),
+                "conta": st.column_config.SelectboxColumn(
+                    "Conta", options=account_names, required=True, width="medium"
+                ) if account_names else st.column_config.TextColumn("Conta", width="medium"),
+                "status": st.column_config.SelectboxColumn(
+                    "Status",
+                    options=["✅ Pago", "🕒 Previsto", "🚨 Atrasado"],
+                    required=True,
+                    width="small",
+                ),
+                "_tx_id": None,
+            }
+        )
+        kwargs["column_config"] = config
+        kwargs["disabled"] = ["_tx_id"]
+
+        edited = original_data_editor(working, *args, **kwargs)
+
+        if not isinstance(edited, pd.DataFrame) or "_tx_id" not in edited.columns:
+            return edited
+
+        status_map = {
+            "✅ Pago": "pago",
+            "🕒 Previsto": "previsto",
+            "🕒 Pendente": "previsto",
+            "🚨 Atrasado": "atrasado",
+            "pago": "pago",
+            "previsto": "previsto",
+            "atrasado": "atrasado",
+        }
+        kind_map = {"Receita": "receita", "Despesa": "despesa"}
+        user_id = str(st.session_state.get("active_financial_user_id") or "")
+        if not user_id:
+            return edited
+
+        base_by_id = {
+            str(row["_tx_id"]): row
+            for _, row in working.iterrows()
+            if not _is_blank(row.get("_tx_id"))
+        }
+
+        saved = 0
+        for _, row in edited.iterrows():
+            transaction_id = str(row.get("_tx_id") or "")
+            base = base_by_id.get(transaction_id)
+            if base is None:
+                continue
+
+            changes: dict[str, Any] = {}
+
+            if "data" in edited.columns and _as_date(row.get("data")) != _as_date(base.get("data")):
+                changes["occurred_on"] = _as_date(row.get("data"))
+
+            if "vencimento" in edited.columns and _as_date(row.get("vencimento")) != _as_date(base.get("vencimento")):
+                changes["due_date"] = _as_date(row.get("vencimento"))
+
+            if "tipo" in edited.columns and not _same_text(row.get("tipo"), base.get("tipo")):
+                kind = kind_map.get(str(row.get("tipo")))
+                if kind:
+                    changes["kind"] = kind
+
+            if "categoria" in edited.columns and not _same_text(row.get("categoria"), base.get("categoria")):
+                category_id = category_ids.get(str(row.get("categoria")))
+                if category_id:
+                    changes["category_id"] = category_id
+
+            if "descricao" in edited.columns and not _same_text(row.get("descricao"), base.get("descricao")):
+                description = str(row.get("descricao") or "").strip()
+                if description:
+                    changes["description"] = description
+
+            if "valor" in edited.columns:
+                edited_amount = _as_amount(row.get("valor"))
+                base_amount = _as_amount(base.get("valor"))
+                if abs(edited_amount - base_amount) > 0.0001 and edited_amount > 0:
+                    changes["amount"] = edited_amount
+
+            if "conta" in edited.columns and not _same_text(row.get("conta"), base.get("conta")):
+                account_id = account_ids.get(str(row.get("conta")))
+                if account_id:
+                    changes["account_id"] = account_id
+
+            if "status" in edited.columns and not _same_text(row.get("status"), base.get("status")):
+                status = status_map.get(str(row.get("status")))
+                if status:
+                    changes["status"] = status
+
+            if not changes:
+                continue
+
+            try:
+                repository.update_transaction(user_id, transaction_id, **changes)
+                saved += 1
+            except Exception as exc:
+                try:
+                    st.toast(f"Não foi possível salvar a alteração: {exc}", icon="⚠️")
+                except Exception:
+                    pass
+
+        if saved:
+            try:
+                st.toast(
+                    "Alteração salva automaticamente." if saved == 1 else f"{saved} lançamentos atualizados.",
+                    icon="✅",
+                )
+            except Exception:
+                pass
+
+        return edited
+
+    st.data_editor = renova_data_editor
+    st._renova_inline_transactions_patched = True
+
+
 try:
     _install_repository_cache()
     _install_access_cache()
     _install_modal_chat_ux()
+    _install_inline_transaction_editor()
 except Exception:
     # Nenhuma otimização deve impedir o sistema de iniciar.
     pass
