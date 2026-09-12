@@ -92,6 +92,13 @@ def render_desktop_navigation(options: Sequence[str], current: str) -> str:
                     _go_to(page)
                     st.rerun()
 
+            if group_title == "📊 PLANEJAMENTO":
+                st.page_link(
+                    "pages/Planejamento_Caixa.py",
+                    label="📈  Planejamento de Caixa",
+                    use_container_width=True,
+                )
+
     extras = [page for page in available if page not in used]
     if extras:
         with st.expander("⋯ OUTROS", expanded=current in extras):
