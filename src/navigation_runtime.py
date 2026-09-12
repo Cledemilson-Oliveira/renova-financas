@@ -51,15 +51,11 @@ def install_navigation_runtime() -> None:
             st.switch_page("pages/Assinar_RENOVA_IA.py")
 
         if current_device() == "mobile":
-            from .ui.navigation_mobile import render_mobile_navigation
-
-            return render_mobile_navigation(
-                _ORIGINAL_RADIO,
-                available,
-                current,
-                label=label,
-                label_visibility=str(kwargs.get("label_visibility") or "collapsed"),
-            )
+            # No celular a navegação principal já é renderizada no topo do app.
+            # Não criamos um segundo widget dentro da sidebar escondida: isso
+            # reduz o custo de cada rerun e evita dois estados de navegação
+            # competindo entre si.
+            return current
 
         from .ui.navigation_desktop import render_desktop_navigation
 
