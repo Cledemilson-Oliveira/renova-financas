@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Minhas Finanças RENOVA</string>
+    <string name="offline_title">Você está offline</string>
+    <string name="offline_message">Conecte-se à internet para acessar suas finanças com segurança.</string>
+    <string name="retry">Tentar novamente</string>
+</resources>
