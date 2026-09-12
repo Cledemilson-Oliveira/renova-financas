@@ -51,7 +51,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.11.6"
+APP_BUILD = "2026.09.12.1"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -759,6 +759,57 @@ def open_delete_transaction_dialog(transaction_id: str) -> None:
                 st.error(f"Não foi possível excluir: {exc}")
 
 
+@st.dialog("🗑️ Excluir lançamentos selecionados", width="large")
+def open_bulk_delete_transactions_dialog(transaction_ids: list[str]) -> None:
+    tx = st.session_state.transactions
+    ids = {str(item) for item in transaction_ids}
+    selected = tx[tx["id"].astype(str).isin(ids)] if "id" in tx.columns else pd.DataFrame()
+    if selected.empty:
+        st.info("Nenhum lançamento selecionado.")
+        return
+
+    st.warning(
+        f"Você está prestes a excluir **{len(selected)} lançamento(s)**. "
+        "Essa ação remove definitivamente os registros selecionados."
+    )
+    preview = selected[[col for col in ["data", "descricao", "valor"] if col in selected.columns]].copy()
+    if "valor" in preview.columns:
+        preview["valor"] = preview["valor"].map(brl)
+    st.dataframe(preview, use_container_width=True, hide_index=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Cancelar", key="cancel_bulk_delete_transactions", use_container_width=True):
+            st.rerun()
+    with c2:
+        if st.button(
+            f"🗑️ Excluir {len(selected)} lançamento(s)",
+            key="confirm_bulk_delete_transactions",
+            type="primary",
+            use_container_width=True,
+        ):
+            failed = []
+            for transaction_id in selected["id"].astype(str).tolist():
+                try:
+                    delete_transaction(active_user_id(), transaction_id)
+                except Exception as exc:
+                    failed.append((transaction_id, str(exc)))
+            _refresh_active_financial_data(active_user_id())
+            st.session_state.pop("transactions_editor", None)
+            st.session_state.tx_select_all = False
+            if failed:
+                st.session_state.tx_bulk_message = (
+                    "warning",
+                    f"{len(selected) - len(failed)} lançamento(s) excluído(s), mas {len(failed)} não puderam ser removidos.",
+                )
+            else:
+                st.session_state.tx_bulk_message = (
+                    "success",
+                    f"{len(selected)} lançamento(s) excluído(s) com sucesso.",
+                )
+            st.rerun()
+
+
 def render_transactions() -> None:
     hero(
         "Receitas e <strong>despesas</strong>",
@@ -782,8 +833,40 @@ def render_transactions() -> None:
           backdrop-filter:blur(16px)!important;
         }
         .st-key-launch_actions [data-testid="stHorizontalBlock"]{gap:8px!important}
+        .st-key-transactions_premium_table{
+          margin-top:10px!important;
+          padding:12px 12px 6px!important;
+          border:1px solid rgba(64,185,255,.22)!important;
+          border-radius:20px!important;
+          background:linear-gradient(145deg,rgba(4,22,36,.98),rgba(2,10,18,.99))!important;
+          box-shadow:0 18px 44px rgba(0,0,0,.28),0 0 28px rgba(0,174,239,.08)!important;
+          overflow:hidden!important;
+        }
+        .st-key-transactions_premium_table [data-testid="stDataFrame"]{
+          border-radius:14px!important;
+          overflow:hidden!important;
+        }
+        .st-key-transactions_bulk_actions{
+          margin-top:10px!important;
+          padding:10px 12px!important;
+          border-radius:16px!important;
+          border:1px solid rgba(255,215,90,.24)!important;
+          background:linear-gradient(135deg,rgba(6,27,43,.92),rgba(4,15,25,.96))!important;
+        }
+        .transactions-summary{
+          display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px;
+        }
+        .transactions-summary span{
+          display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;
+          border:1px solid rgba(0,174,239,.18);background:rgba(0,174,239,.06);
+          color:#BFEFFF;font-size:.72rem;font-weight:800;
+        }
+        .transactions-summary span.income{color:#9CF2C2;border-color:rgba(62,214,132,.22);background:rgba(62,214,132,.07)}
+        .transactions-summary span.expense{color:#FFC2C2;border-color:rgba(255,104,104,.22);background:rgba(255,104,104,.07)}
         @media(max-width:768px){
           .st-key-launch_actions{left:14px!important;right:14px!important;bottom:136px!important;width:auto!important}
+          .st-key-transactions_premium_table{padding:8px 6px 4px!important;border-radius:16px!important}
+          .st-key-transactions_bulk_actions{padding:8px!important}
         }
         </style>
         """,
@@ -802,6 +885,14 @@ def render_transactions() -> None:
     if income_clicked:
         open_income_dialog()
 
+    bulk_message = st.session_state.pop("tx_bulk_message", None)
+    if bulk_message:
+        message_type, message_text = bulk_message
+        if message_type == "success":
+            st.success(message_text)
+        else:
+            st.warning(message_text)
+
     st.caption("Despesas pendentes podem receber uma data de vencimento; a Central de Urgências usa essa data para avisar quando estão próximas ou atrasadas.")
 
     tx = st.session_state.transactions.copy()
@@ -809,45 +900,136 @@ def render_transactions() -> None:
         st.info("Nenhum lançamento cadastrado. Use um dos botões flutuantes para começar.")
         return
 
-    f1, f2 = st.columns(2)
-    with f1:
-        type_filter = st.multiselect("Filtrar por tipo", ["Receita", "Despesa"], default=["Receita", "Despesa"])
-    with f2:
-        category_filter = st.multiselect("Filtrar por categoria", sorted(tx["categoria"].dropna().unique().tolist()))
-    filtered = tx[tx["tipo"].isin(type_filter)]
+    search_col, type_col, category_col, status_col = st.columns([1.45, 1, 1.1, 1])
+    with search_col:
+        search_text = st.text_input(
+            "Buscar lançamento",
+            placeholder="Descrição, categoria ou conta...",
+            key="transactions_search",
+        )
+    with type_col:
+        type_filter = st.multiselect(
+            "Tipo",
+            ["Receita", "Despesa"],
+            default=["Receita", "Despesa"],
+            key="transactions_type_filter",
+        )
+    with category_col:
+        category_filter = st.multiselect(
+            "Categoria",
+            sorted(tx["categoria"].dropna().unique().tolist()),
+            key="transactions_category_filter",
+        )
+    with status_col:
+        status_options = sorted(tx["status"].dropna().astype(str).unique().tolist()) if "status" in tx.columns else []
+        status_filter = st.multiselect("Status", status_options, key="transactions_status_filter")
+
+    filtered = tx[tx["tipo"].isin(type_filter)].copy()
     if category_filter:
         filtered = filtered[filtered["categoria"].isin(category_filter)]
+    if status_filter and "status" in filtered.columns:
+        filtered = filtered[filtered["status"].astype(str).isin(status_filter)]
+    if search_text.strip():
+        needle = search_text.strip().casefold()
+        searchable_columns = [col for col in ["descricao", "categoria", "conta", "tipo", "status"] if col in filtered.columns]
+        mask = pd.Series(False, index=filtered.index)
+        for col in searchable_columns:
+            mask = mask | filtered[col].fillna("").astype(str).str.casefold().str.contains(needle, regex=False)
+        filtered = filtered[mask]
 
+    if filtered.empty:
+        st.info("Nenhum lançamento encontrado com os filtros atuais.")
+        return
+
+    income_total = float(filtered.loc[filtered["tipo"] == "Receita", "valor"].sum())
+    expense_total = float(filtered.loc[filtered["tipo"] == "Despesa", "valor"].sum())
+    st.markdown(
+        f"""
+        <div class="transactions-summary">
+          <span>📋 {len(filtered)} lançamento(s)</span>
+          <span class="income">↗ Receitas {brl(income_total)}</span>
+          <span class="expense">↘ Despesas {brl(expense_total)}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    can_manage = REAL_MODE and "id" in filtered.columns
     display = filtered.copy()
+    if "id" in display.columns:
+        display["_tx_id"] = display["id"].astype(str)
+    display.insert(0, "selecionar", bool(st.session_state.get("tx_select_all", False)))
     display["valor"] = display["valor"].map(brl)
-    visible = [col for col in ["data", "vencimento", "tipo", "categoria", "descricao", "valor", "conta", "status"] if col in display.columns]
-    st.dataframe(display[visible], use_container_width=True, hide_index=True)
+    if "status" in display.columns:
+        status_labels = {"pago": "✅ Pago", "atrasado": "🚨 Atrasado", "previsto": "🕒 Previsto"}
+        display["status"] = display["status"].astype(str).map(lambda value: status_labels.get(value.casefold(), value.title()))
 
-    if REAL_MODE and "id" in filtered.columns and not filtered.empty:
-        st.markdown("### Gerenciar lançamento")
-        st.caption("Selecione um registro para corrigir informações ou excluir um lançamento feito por engano.")
-        options = filtered.index.tolist()
+    visible = ["selecionar", *[col for col in ["data", "vencimento", "tipo", "categoria", "descricao", "valor", "conta", "status"] if col in display.columns]]
+    if "_tx_id" in display.columns:
+        visible.append("_tx_id")
 
-        def _tx_label(idx: int) -> str:
-            row = filtered.loc[idx]
-            due = row.get("vencimento")
-            due_text = f" • vence {due.strftime('%d/%m/%Y')}" if isinstance(due, date) else ""
-            return f"{row['data'].strftime('%d/%m/%Y')} • {row['descricao']} • {brl(float(row['valor']))}{due_text}"
+    select_all_col, helper_col = st.columns([1, 2.4])
+    with select_all_col:
+        select_all = st.checkbox("Selecionar todos os filtrados", key="tx_select_all")
+    with helper_col:
+        st.caption("Marque as caixas da primeira coluna para editar um registro ou excluir vários de uma vez.")
 
-        selected_index = st.selectbox(
-            "Lançamento",
-            options,
-            format_func=_tx_label,
-            key="manage_transaction_select",
+    if select_all:
+        display["selecionar"] = True
+
+    with st.container(key="transactions_premium_table"):
+        edited = st.data_editor(
+            display[visible],
+            key="transactions_editor",
+            use_container_width=True,
+            hide_index=True,
+            disabled=[col for col in visible if col not in {"selecionar"}],
+            column_config={
+                "selecionar": st.column_config.CheckboxColumn("✓", help="Marque para selecionar", default=False, width="small"),
+                "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY", width="small"),
+                "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY", width="small"),
+                "tipo": st.column_config.TextColumn("Tipo", width="small"),
+                "categoria": st.column_config.TextColumn("Categoria", width="medium"),
+                "descricao": st.column_config.TextColumn("Descrição", width="large"),
+                "valor": st.column_config.TextColumn("Valor", width="small"),
+                "conta": st.column_config.TextColumn("Conta", width="medium"),
+                "status": st.column_config.TextColumn("Status", width="small"),
+                "_tx_id": None,
+            },
+            height=min(620, max(210, 74 + len(display) * 36)),
         )
-        selected_row = filtered.loc[selected_index]
-        action_cols = st.columns(2)
-        with action_cols[0]:
-            if st.button("✏️ Editar lançamento", use_container_width=True, key="edit_selected_transaction"):
-                open_edit_transaction_dialog(str(selected_row["id"]))
-        with action_cols[1]:
-            if st.button("🗑️ Excluir lançamento", use_container_width=True, key="delete_selected_transaction"):
-                open_delete_transaction_dialog(str(selected_row["id"]))
+
+    selected_ids = []
+    if can_manage and "selecionar" in edited.columns and "_tx_id" in edited.columns:
+        selected_ids = edited.loc[edited["selecionar"] == True, "_tx_id"].astype(str).tolist()
+
+    if can_manage:
+        with st.container(key="transactions_bulk_actions"):
+            info_col, edit_col, delete_col = st.columns([1.4, 1, 1])
+            with info_col:
+                if selected_ids:
+                    st.markdown(f"**✓ {len(selected_ids)} selecionado(s)**")
+                else:
+                    st.caption("Selecione um ou mais lançamentos na tabela.")
+            with edit_col:
+                edit_disabled = len(selected_ids) != 1
+                if st.button(
+                    "✏️ Editar selecionado",
+                    key="edit_checked_transaction",
+                    use_container_width=True,
+                    disabled=edit_disabled,
+                ):
+                    open_edit_transaction_dialog(selected_ids[0])
+            with delete_col:
+                delete_disabled = len(selected_ids) == 0
+                if st.button(
+                    f"🗑️ Excluir selecionados{f' ({len(selected_ids)})' if selected_ids else ''}",
+                    key="delete_checked_transactions",
+                    use_container_width=True,
+                    type="primary" if selected_ids else "secondary",
+                    disabled=delete_disabled,
+                ):
+                    open_bulk_delete_transactions_dialog(selected_ids)
 
 
 def render_categories() -> None:
