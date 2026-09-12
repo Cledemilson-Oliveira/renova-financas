@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+from . import mobile as _mobile
 from .mobile import (
     _date_text,
     _money_text,
@@ -105,9 +106,6 @@ def _render_transaction_cards_safe(df: pd.DataFrame) -> None:
             else ""
         )
 
-        # Mantido propositalmente em uma única linha. Strings HTML com quatro
-        # ou mais espaços no início podem ser classificadas pelo Markdown como
-        # código, mesmo quando unsafe_allow_html=True.
         card = (
             f'<article class="renova-mobile-row">'
             f'<div class="renova-mobile-row-top">'
@@ -127,8 +125,18 @@ def _render_transaction_cards_safe(df: pd.DataFrame) -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
+def _install_safe_card_renderer() -> None:
+    """Substitui o renderer legado no próprio módulo mobile.
+
+    Isso cobre tanto o fluxo adaptado por st.dataframe quanto qualquer chamada
+    interna que ainda resolva _transaction_cards diretamente no módulo mobile.
+    """
+    _mobile._transaction_cards = _render_transaction_cards_safe
+
+
 def apply_mobile_runtime() -> None:
     """Ativa exclusivamente a camada visual do celular."""
+    _install_safe_card_renderer()
     apply_mobile_styles()
     _cleanup_desktop_shell_artifacts()
 
@@ -139,6 +147,8 @@ def render_dataframe_mobile_runtime(
     *args: Any,
     **kwargs: Any,
 ) -> Any:
+    _install_safe_card_renderer()
+
     if isinstance(data, pd.DataFrame) and not data.empty:
         columns = set(map(str, data.columns))
         if {"descricao", "valor", "tipo"}.issubset(columns):
