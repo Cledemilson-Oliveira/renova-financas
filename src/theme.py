@@ -615,27 +615,57 @@ html,body,.stApp{background:#061426!important;color:#F5FAFF!important}
   #renova-mobile-nav{display:none!important}
   .st-key-renova_fin_mobile_nav{
     display:block!important;
+    visibility:visible!important;
+    opacity:1!important;
+    pointer-events:auto!important;
     position:fixed!important;
-    top:8px!important;left:10px!important;right:10px!important;
+    top:max(8px,env(safe-area-inset-top))!important;
+    left:10px!important;right:10px!important;
     z-index:10050!important;
     margin:0!important;
-    filter:drop-shadow(0 10px 24px rgba(2,12,24,.32))!important;
+    filter:drop-shadow(0 8px 18px rgba(2,12,24,.28))!important;
   }
   .st-key-renova_fin_mobile_nav button{
-    width:100%!important;min-height:52px!important;
+    width:100%!important;min-height:54px!important;
     border-radius:15px!important;
-    border:1px solid rgba(25,217,255,.58)!important;
+    border:1px solid rgba(25,217,255,.64)!important;
     background:linear-gradient(135deg,#123A5D 0%,#0F3150 55%,#17365D 100%)!important;
     color:#F8FCFF!important;-webkit-text-fill-color:#F8FCFF!important;
-    font-size:.88rem!important;font-weight:950!important;
-    box-shadow:0 10px 24px rgba(0,0,0,.24),0 0 18px rgba(25,217,255,.11),inset 0 1px rgba(255,255,255,.08)!important;
+    font-size:.95rem!important;font-weight:950!important;
+    line-height:1.2!important;
+    box-shadow:0 8px 18px rgba(0,0,0,.22),0 0 14px rgba(25,217,255,.09)!important;
   }
   .st-key-renova_fin_mobile_nav button *{
     color:#F8FCFF!important;-webkit-text-fill-color:#F8FCFF!important;font-weight:950!important;
   }
   [data-testid="stMainBlockContainer"]{
-    padding-top:5.45rem!important;
+    padding-top:5.55rem!important;
   }
+
+  /* Popover do menu: leitura fácil e alvos grandes para toque. */
+  [data-baseweb="popover"]{
+    max-width:calc(100vw - 20px)!important;
+  }
+  [data-baseweb="popover"] [data-testid="stVerticalBlock"]{
+    gap:.45rem!important;
+  }
+  [data-baseweb="popover"] [data-testid="stButton"] button{
+    min-height:48px!important;
+    font-size:.94rem!important;
+    justify-content:flex-start!important;
+    text-align:left!important;
+  }
+
+  /* Tipografia e espaçamento próprios para leitura no celular. */
+  .stApp p,.stApp li,.stApp label{
+    line-height:1.48!important;
+  }
+  .stApp [data-testid="stMarkdownContainer"] p{
+    font-size:.96rem!important;
+  }
+  .stApp h1{font-size:1.72rem!important;line-height:1.12!important}
+  .stApp h2{font-size:1.38rem!important;line-height:1.18!important}
+  .stApp h3{font-size:1.14rem!important;line-height:1.22!important}
 
   /* Superfícies menos pesadas: azul intermediário, borda leve e sombra externa. */
   .metric-card,
