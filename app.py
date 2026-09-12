@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import date
 from html import escape
+import time
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.access import is_owner, list_user_access
 from src.data import (
@@ -51,7 +53,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.12.5"
+APP_BUILD = "2026.09.12.6"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -235,7 +237,70 @@ def active_user_id() -> str:
     return str(st.session_state.get("active_financial_user_id") or user.id)
 
 
-def load_data() -> None:
+_FINANCIAL_DATA_KEYS = ("transactions", "accounts", "cards", "budgets", "categories", "goals")
+_FINANCIAL_DATA_TTL_SECONDS = 15.0
+_ACCESS_CACHE_TTL_SECONDS = 45.0
+_AI_ACCESS_CACHE_TTL_SECONDS = 20.0
+
+
+def _cache_is_fresh(timestamp_key: str, ttl_seconds: float) -> bool:
+    loaded_at = float(st.session_state.get(timestamp_key) or 0.0)
+    return bool(loaded_at and (time.monotonic() - loaded_at) < ttl_seconds)
+
+
+def _cached_is_owner(user_id: str) -> bool:
+    if not user_id:
+        return False
+    if (
+        st.session_state.get("_owner_cache_user_id") == user_id
+        and _cache_is_fresh("_owner_cache_at", _ACCESS_CACHE_TTL_SECONDS)
+    ):
+        return bool(st.session_state.get("_owner_cache_value", False))
+    value = bool(is_owner(user_id))
+    st.session_state._owner_cache_user_id = user_id
+    st.session_state._owner_cache_value = value
+    st.session_state._owner_cache_at = time.monotonic()
+    return value
+
+
+def _cached_owner_users(user_id: str) -> list[dict]:
+    if not user_id or not _cached_is_owner(user_id):
+        return []
+    if (
+        st.session_state.get("_owner_users_cache_user_id") == user_id
+        and _cache_is_fresh("_owner_users_cache_at", _ACCESS_CACHE_TTL_SECONDS)
+    ):
+        return list(st.session_state.get("_owner_users_cache_value") or [])
+    value = list_user_access()
+    st.session_state._owner_users_cache_user_id = user_id
+    st.session_state._owner_users_cache_value = value
+    st.session_state._owner_users_cache_at = time.monotonic()
+    return value
+
+
+def _cached_has_active_ai_subscription(user_id: str) -> bool:
+    if not user_id:
+        return False
+    if (
+        st.session_state.get("_ai_access_cache_user_id") == user_id
+        and _cache_is_fresh("_ai_access_cache_at", _AI_ACCESS_CACHE_TTL_SECONDS)
+    ):
+        return bool(st.session_state.get("_ai_access_cache_value", False))
+    value = bool(has_active_ai_subscription(user_id))
+    st.session_state._ai_access_cache_user_id = user_id
+    st.session_state._ai_access_cache_value = value
+    st.session_state._ai_access_cache_at = time.monotonic()
+    return value
+
+
+def _store_financial_bundle(target_user_id: str, bundle: dict) -> None:
+    for key, value in bundle.items():
+        st.session_state[key] = value
+    st.session_state._financial_data_user_id = target_user_id
+    st.session_state._financial_data_loaded_at = time.monotonic()
+
+
+def load_data(*, force: bool = False) -> None:
     if REAL_MODE:
         user = current_user()
         if not user:
@@ -245,9 +310,12 @@ def load_data() -> None:
         if st.session_state.get("bootstrap_user_id") != session_user_id:
             bootstrap_user(user)
             st.session_state.bootstrap_user_id = session_user_id
-        bundle = fetch_financial_data(target_user_id)
-        for key, value in bundle.items():
-            st.session_state[key] = value
+
+        same_user = st.session_state.get("_financial_data_user_id") == target_user_id
+        complete = all(key in st.session_state for key in _FINANCIAL_DATA_KEYS)
+        fresh = _cache_is_fresh("_financial_data_loaded_at", _FINANCIAL_DATA_TTL_SECONDS)
+        if force or not (same_user and complete and fresh):
+            _store_financial_bundle(target_user_id, fetch_financial_data(target_user_id))
     else:
         if "transactions" not in st.session_state:
             st.session_state.transactions = demo_transactions()
@@ -273,8 +341,8 @@ if REAL_MODE:
     st.session_state.active_financial_user_id = session_user_id
 
     try:
-        if session_user_id and is_owner(session_user_id):
-            owner_users = list_user_access()
+        if session_user_id and _cached_is_owner(session_user_id):
+            owner_users = _cached_owner_users(session_user_id)
             active_users = [row for row in owner_users if row.get("status") == "ativo"]
             owner_options = {
                 f"{row.get('email', row.get('user_id'))} • {row.get('role', 'usuario')}": str(row.get("user_id"))
@@ -324,8 +392,7 @@ def category_options(kind: str | None = None) -> dict[str, str]:
 def _refresh_categories() -> None:
     if not REAL_MODE:
         return
-    refreshed = fetch_financial_data(active_user_id())
-    st.session_state.categories = refreshed["categories"]
+    _refresh_active_financial_data(active_user_id())
 
 
 def _create_or_get_category(kind: str, name: str) -> tuple[str, str]:
@@ -502,7 +569,71 @@ def render_dashboard() -> None:
         st.dataframe(latest[visible], use_container_width=True, hide_index=True)
 
 
+def _apply_transaction_dialog_ux() -> None:
+    st.markdown(
+        """
+        <span class="renova-transaction-dialog-marker"></span>
+        <style>
+        div[role="dialog"]:has(.renova-transaction-dialog-marker){
+          width:min(780px,calc(100vw - 36px))!important;
+          max-width:780px!important;
+          max-height:90dvh!important;
+          border-radius:22px!important;
+          overflow:hidden!important;
+        }
+        div[role="dialog"]:has(.renova-transaction-dialog-marker) > div{
+          max-height:90dvh!important;
+          overflow-y:auto!important;
+          overscroll-behavior:contain!important;
+          padding-bottom:18px!important;
+        }
+        div[role="dialog"]:has(.renova-transaction-dialog-marker) input,
+        div[role="dialog"]:has(.renova-transaction-dialog-marker) textarea{
+          font-size:16px!important;
+        }
+        div[role="dialog"]:has(.renova-transaction-dialog-marker) [data-baseweb="input"],
+        div[role="dialog"]:has(.renova-transaction-dialog-marker) [data-baseweb="select"] > div{
+          min-height:48px!important;
+        }
+        @media(max-width:768px){
+          div[role="dialog"]:has(.renova-transaction-dialog-marker){
+            inset:0!important;
+            width:100vw!important;
+            max-width:100vw!important;
+            height:100dvh!important;
+            max-height:100dvh!important;
+            margin:0!important;
+            border-radius:0!important;
+            border:0!important;
+          }
+          div[role="dialog"]:has(.renova-transaction-dialog-marker) > div{
+            height:100dvh!important;
+            max-height:100dvh!important;
+            padding-left:14px!important;
+            padding-right:14px!important;
+            padding-bottom:max(22px,env(safe-area-inset-bottom))!important;
+          }
+          div[role="dialog"]:has(.renova-transaction-dialog-marker) [data-testid="stHorizontalBlock"]{
+            flex-wrap:wrap!important;
+            gap:8px!important;
+          }
+          div[role="dialog"]:has(.renova-transaction-dialog-marker) [data-testid="column"]{
+            flex:1 1 100%!important;
+            width:100%!important;
+            min-width:100%!important;
+          }
+          div[role="dialog"]:has(.renova-transaction-dialog-marker) button{
+            min-height:48px!important;
+          }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _render_quick_transaction_dialog(kind_db: str) -> None:
+    _apply_transaction_dialog_ux()
     is_income = kind_db == "receita"
     kind_label = "Receita" if is_income else "Despesa"
     accounts_map = account_options()
@@ -608,6 +739,7 @@ def _render_quick_transaction_dialog(kind_db: str) -> None:
                     due_date=due_date,
                     status=status_db,
                 )
+                _refresh_active_financial_data(active_user_id())
                 st.success(f"{kind_label} salva em {category_name}.")
                 st.rerun()
             else:
@@ -640,6 +772,7 @@ def open_income_dialog() -> None:
 
 @st.dialog("✏️ Editar lançamento", width="large")
 def open_edit_transaction_dialog(transaction_id: str) -> None:
+    _apply_transaction_dialog_ux()
     tx = st.session_state.transactions
     matches = tx[tx["id"].astype(str) == str(transaction_id)] if "id" in tx.columns else pd.DataFrame()
     if matches.empty:
@@ -1116,6 +1249,7 @@ def render_accounts() -> None:
                 if REAL_MODE:
                     try:
                         create_account(active_user_id(), name, account_type, initial_balance)
+                        _refresh_active_financial_data(active_user_id())
                         st.rerun()
                     except Exception:
                         st.error("Não foi possível criar a conta.")
@@ -1163,6 +1297,7 @@ def render_cards() -> None:
                             int(due_day),
                             None if linked == "Sem vínculo" else accounts_map[linked],
                         )
+                        _refresh_active_financial_data(active_user_id())
                         st.rerun()
                     except Exception:
                         st.error("Não foi possível criar o cartão.")
@@ -1216,6 +1351,7 @@ def render_budgets() -> None:
                                 date.today().replace(day=1),
                                 planned,
                             )
+                            _refresh_active_financial_data(active_user_id())
                             st.rerun()
                         except Exception:
                             st.error("Não foi possível salvar o orçamento.")
@@ -1305,7 +1441,7 @@ def has_personalized_ai_training_access() -> bool:
     if not uid:
         return False
     try:
-        return bool(is_owner(uid) or has_active_ai_subscription(uid))
+        return bool(_cached_is_owner(uid) or _cached_has_active_ai_subscription(uid))
     except Exception:
         return False
 
@@ -1324,9 +1460,7 @@ def _ensure_ai_messages() -> None:
 
 
 def _refresh_active_financial_data(user_id: str) -> None:
-    refreshed = fetch_financial_data(user_id)
-    for key, value in refreshed.items():
-        st.session_state[key] = value
+    _store_financial_bundle(user_id, fetch_financial_data(user_id))
 
 
 def _execute_ai_prompt(prompt: str) -> None:
@@ -1516,6 +1650,39 @@ def render_ai_subscription_sales() -> None:
     st.switch_page("pages/Assinar_RENOVA_IA.py")
 
 
+def _scroll_ai_chat_to_bottom(*, force: bool = False) -> None:
+    messages_count = len(st.session_state.get("ai_messages") or [])
+    last_count = int(st.session_state.get("_ai_last_autoscroll_count") or -1)
+    should_scroll = force or bool(st.session_state.pop("_ai_force_scroll_bottom", False)) or messages_count != last_count
+    if not should_scroll:
+        return
+    st.session_state._ai_last_autoscroll_count = messages_count
+    components.html(
+        """
+        <script>
+        (() => {
+          const doc = window.parent.document;
+          const moveToBottom = () => {
+            const shell = doc.querySelector('.st-key-ai_chat_modal_shell');
+            if (shell) shell.scrollTop = shell.scrollHeight;
+            if (window.parent.matchMedia('(min-width: 769px)').matches) {
+              const input = doc.querySelector('.st-key-ai_chat_composer textarea');
+              if (input && doc.activeElement !== input) {
+                try { input.focus({preventScroll:true}); } catch (_) {}
+              }
+            }
+          };
+          requestAnimationFrame(moveToBottom);
+          setTimeout(moveToBottom, 70);
+          setTimeout(moveToBottom, 220);
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 @st.dialog("RENOVA IA", width="small")
 def open_ai_dialog() -> None:
     personalized = has_personalized_ai_training_access()
@@ -1619,6 +1786,7 @@ def open_ai_dialog() -> None:
           div[role="dialog"]{inset:0!important;width:100vw!important;max-width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important;border:0!important}
           .st-key-ai_chat_modal_shell{height:calc(100dvh - 188px)!important;padding:10px 9px 18px!important}
           .st-key-ai_chat_composer{padding-bottom:max(10px,env(safe-area-inset-bottom))!important}
+          .st-key-ai_chat_composer [data-testid="stChatInput"] textarea{font-size:16px!important}
           .st-key-ai_chat_modal_shell [data-testid="stChatMessage"]{max-width:88%!important}
           .st-key-ai_chat_modal_shell [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]){max-width:84%!important}
           .ai-panel-header{padding-top:max(12px,env(safe-area-inset-top))}
@@ -1710,6 +1878,8 @@ def open_ai_dialog() -> None:
         render_ai_input("ai_modal_input", fragment_rerun=True)
         st.markdown('<div class="ai-disclaimer">A RENOVA IA pode cometer erros. Confira informações importantes.</div>', unsafe_allow_html=True)
 
+    _scroll_ai_chat_to_bottom()
+
 
 def render_ai() -> None:
     personalized = has_personalized_ai_training_access()
@@ -1747,8 +1917,8 @@ def render_sidebar_profile() -> None:
     ai_active = False
     if REAL_MODE and uid:
         try:
-            owner = is_owner(uid)
-            ai_active = owner or has_active_ai_subscription(uid)
+            owner = _cached_is_owner(uid)
+            ai_active = owner or _cached_has_active_ai_subscription(uid)
         except Exception:
             pass
 
@@ -1908,6 +2078,7 @@ pages[page]()
 if AI_FAB_CLICKED:
     st.session_state.ai_chat_open = True
     st.session_state.ai_chat_minimized = False
+    st.session_state._ai_force_scroll_bottom = True
 
 if st.session_state.get("ai_chat_open"):
     open_ai_dialog()
