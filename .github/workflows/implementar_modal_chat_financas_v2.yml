@@ -1,0 +1,43 @@
+name: RENOVA Finanças Modal Chat IA V2
+
+on:
+  push:
+    paths:
+      - 'scripts/implementar_modal_chat_financas_v2.py'
+      - '.github/workflows/implementar_modal_chat_financas_v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Aplicar modal flutuante RENOVA IA Financeira
+        run: python scripts/implementar_modal_chat_financas_v2.py
+      - name: Validar sintaxe
+        run: python -m py_compile app.py
+      - name: Validar recursos principais do chat
+        run: |
+          grep -q 'width:440px' app.py
+          grep -q 'ai_chat_minimized' app.py
+          grep -q 'Histórico de conversas' app.py
+          grep -q 'A RENOVA IA pode cometer erros' app.py
+          grep -q 'RENOVA IA está digitando' app.py
+          grep -q '100dvh' app.py
+      - name: Publicar implementação
+        run: |
+          if git diff --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+          git config user.name 'RENOVA Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app.py
+          git commit -m 'feat(ui): implementar painel flutuante completo da RENOVA IA Financeira'
+          git push
