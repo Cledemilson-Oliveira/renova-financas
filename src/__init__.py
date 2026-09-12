@@ -98,3 +98,14 @@ _install_ai_training_runtime()
 _install_recurring_finance_runtime()
 _install_recurring_ai_runtime()
 _install_theme_mode_runtime()
+
+# Carrega explicitamente os patches de performance/UX do projeto. Em alguns
+# ambientes do Streamlit Cloud o mecanismo automático do Python para
+# `sitecustomize.py` não é executado de forma confiável. Importar aqui garante
+# que a edição inline da tabela, o cache de leitura e o ajuste do chat modal
+# estejam ativos antes da interface principal ser renderizada.
+try:
+    import sitecustomize as _renova_sitecustomize  # noqa: F401
+except Exception:
+    # Esses patches são melhorias de UX; nunca devem impedir o app de iniciar.
+    pass
