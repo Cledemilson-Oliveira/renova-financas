@@ -51,7 +51,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.12.4"
+APP_BUILD = "2026.09.12.5"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -1556,12 +1556,26 @@ def open_ai_dialog() -> None:
         .ai-panel-tools{display:flex;justify-content:flex-end;gap:6px}
 
         .st-key-ai_chat_modal_shell{
-          height:calc(min(720px,85vh) - 188px)!important;overflow-y:auto!important;overflow-x:hidden!important;
+          height:calc(min(720px,85vh) - 188px)!important;
+          min-height:0!important;
+          overflow-y:scroll!important;
+          overflow-x:hidden!important;
+          overscroll-behavior-y:contain!important;
+          scrollbar-gutter:stable!important;
+          touch-action:pan-y!important;
+          -webkit-overflow-scrolling:touch!important;
           padding:12px 12px 18px!important;background:
             radial-gradient(circle at 18% 8%,rgba(24,223,165,.035),transparent 30%),
             linear-gradient(180deg,#0A1A2A,#071522)!important;
-          scrollbar-width:thin;scrollbar-color:rgba(25,217,255,.28) transparent;
+          scrollbar-width:thin;scrollbar-color:rgba(25,217,255,.38) transparent;
         }
+        .st-key-ai_chat_modal_shell::-webkit-scrollbar{width:8px!important}
+        .st-key-ai_chat_modal_shell::-webkit-scrollbar-track{background:transparent!important}
+        .st-key-ai_chat_modal_shell::-webkit-scrollbar-thumb{
+          background:rgba(25,217,255,.30)!important;border-radius:999px!important;
+          border:2px solid transparent!important;background-clip:padding-box!important;
+        }
+        .st-key-ai_chat_modal_shell::-webkit-scrollbar-thumb:hover{background:rgba(25,217,255,.48)!important;background-clip:padding-box!important}
         .st-key-ai_chat_modal_shell [data-testid="stChatMessage"]{
           width:fit-content!important;max-width:82%!important;margin:8px 0!important;padding:9px 12px!important;
           border:1px solid rgba(255,255,255,.08)!important;border-radius:16px 16px 16px 5px!important;
