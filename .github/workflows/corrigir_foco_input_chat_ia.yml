@@ -1,0 +1,39 @@
+name: RENOVA Finanças Corrigir Input Chat IA
+
+on:
+  push:
+    paths:
+      - 'scripts/corrigir_foco_input_chat_ia.py'
+      - '.github/workflows/corrigir_foco_input_chat_ia.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  corrigir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Corrigir foco e clique do campo da RENOVA IA
+        run: python scripts/corrigir_foco_input_chat_ia.py
+      - name: Validar sintaxe
+        run: python -m py_compile app.py
+      - name: Validar correção
+        run: |
+          grep -q 'pointer-events:auto!important' app.py
+          grep -q 'APP_BUILD = "2026.09.12.2"' app.py
+      - name: Publicar correção
+        run: |
+          if git diff --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+          git config user.name 'RENOVA Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app.py
+          git commit -m 'fix(ui): restaurar foco e digitação no chat da RENOVA IA'
+          git push
