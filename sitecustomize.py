@@ -1,14 +1,13 @@
-"""Otimizações transparentes de performance para o RENOVA Finanças.
+"""Otimizações transparentes de performance e UX para o RENOVA Finanças.
 
 O Streamlit reexecuta o script a cada interação de widget. Sem uma camada de
 cache, marcar um checkbox ou alterar um filtro pode disparar novamente todas as
 consultas financeiras no Supabase. Este módulo é carregado automaticamente pelo
 Python e aplica um cache curto, por usuário, apenas às leituras.
 
-Toda operação de escrita conhecida invalida imediatamente o cache do usuário,
-portanto adicionar, editar ou excluir dados continua refletindo no próximo
-rerun. O cache também expira sozinho em poucos segundos para não esconder
-alterações feitas em outra sessão/dispositivo por muito tempo.
+Também ajusta especificamente o chat modal do Assistente Financeiro IA para ter
+comportamento de aplicativo de mensagens: histórico rolável, campo de entrada
+preso ao rodapé e posicionamento automático na mensagem mais recente.
 """
 
 from __future__ import annotations
@@ -49,8 +48,6 @@ def _install_repository_cache() -> None:
         with _LOCK:
             cached = _FINANCIAL_CACHE.get(cache_key)
             if cached and now - cached[0] < _CACHE_TTL_SECONDS:
-                # O app transforma alguns DataFrames localmente. Entregar uma
-                # cópia evita que um rerun contamine o snapshot compartilhado.
                 return deepcopy(cached[1])
 
         data = original_fetch(user_id)
@@ -61,8 +58,6 @@ def _install_repository_cache() -> None:
     cached_fetch_financial_data._renova_cached = True  # type: ignore[attr-defined]
     repository.fetch_financial_data = cached_fetch_financial_data
 
-    # Funções de escrita usadas pelo app e pela IA. O primeiro argumento de
-    # todas elas é o user_id; após sucesso, invalidamos somente aquele usuário.
     mutation_names = (
         "create_account",
         "create_card",
@@ -111,8 +106,6 @@ def _install_access_cache() -> None:
 
     @wraps(original_list)
     def cached_list_user_access(*args, **kwargs):
-        # Atualmente a chamada do app não recebe argumentos. Ainda assim, a
-        # chave considera args/kwargs para permanecer segura se a função evoluir.
         cache_key = repr((args, sorted(kwargs.items())))
         now = monotonic()
         with _LOCK:
@@ -129,10 +122,129 @@ def _install_access_cache() -> None:
     access.list_user_access = cached_list_user_access
 
 
+def _install_modal_chat_ux() -> None:
+    """Mantém o input do chat modal fixo no rodapé e o histórico no fim."""
+    try:
+        import streamlit as st
+        import streamlit.components.v1 as components
+    except Exception:
+        return
+
+    if getattr(st, "_renova_modal_chat_patched", False):
+        return
+
+    original_chat_input = st.chat_input
+
+    modal_css = r"""
+    <style>
+    /* Janela do Assistente Financeiro IA */
+    div[role="dialog"] {
+      height: min(820px, 88vh) !important;
+      max-height: 88vh !important;
+      overflow-y: auto !important;
+      overscroll-behavior: contain !important;
+      scrollbar-gutter: stable !important;
+      padding-bottom: 0 !important;
+    }
+
+    /* Mantém o campo de digitação sempre visível no rodapé. */
+    div[role="dialog"] [data-testid="stChatInput"] {
+      position: sticky !important;
+      bottom: 0 !important;
+      z-index: 999 !important;
+      margin-top: 12px !important;
+      padding: 10px 0 12px !important;
+      background:
+        linear-gradient(180deg, rgba(2,8,14,0), rgba(2,8,14,.96) 28%, rgba(2,8,14,.995) 100%) !important;
+      backdrop-filter: blur(14px) !important;
+    }
+
+    div[role="dialog"] [data-testid="stChatInput"] > div {
+      border-radius: 16px !important;
+      box-shadow: 0 -10px 32px rgba(0,0,0,.28), 0 0 22px rgba(25,217,255,.08) !important;
+    }
+
+    /* Reserva espaço para a última mensagem não ficar escondida atrás do input. */
+    div[role="dialog"] [data-testid="stChatMessage"]:last-of-type {
+      margin-bottom: 20px !important;
+    }
+
+    /* O topo do diálogo permanece disponível enquanto o histórico rola. */
+    div[role="dialog"] > div:first-child {
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 1000 !important;
+    }
+
+    @media (max-width: 768px) {
+      div[role="dialog"] {
+        width: calc(100vw - 16px) !important;
+        max-width: calc(100vw - 16px) !important;
+        height: 92dvh !important;
+        max-height: 92dvh !important;
+        margin: 4dvh 8px !important;
+      }
+
+      div[role="dialog"] [data-testid="stChatInput"] {
+        padding-bottom: max(10px, env(safe-area-inset-bottom)) !important;
+      }
+    }
+    </style>
+    """
+
+    auto_scroll_js = r"""
+    <script>
+    (function () {
+      function goToLatestMessage() {
+        try {
+          const doc = window.parent.document;
+          const dialogs = Array.from(doc.querySelectorAll('div[role="dialog"]'));
+          if (!dialogs.length) return;
+          const dialog = dialogs[dialogs.length - 1];
+          const input = dialog.querySelector('[data-testid="stChatInput"]');
+          if (!input) return;
+
+          const messages = dialog.querySelectorAll('[data-testid="stChatMessage"]');
+          const last = messages.length ? messages[messages.length - 1] : null;
+          if (last) last.scrollIntoView({behavior:'instant', block:'end'});
+          input.scrollIntoView({behavior:'instant', block:'end'});
+          dialog.scrollTop = dialog.scrollHeight;
+        } catch (e) {
+          /* CSS sticky continua garantindo o uso mesmo se o JS for bloqueado. */
+        }
+      }
+
+      requestAnimationFrame(goToLatestMessage);
+      setTimeout(goToLatestMessage, 70);
+      setTimeout(goToLatestMessage, 180);
+      setTimeout(goToLatestMessage, 350);
+    })();
+    </script>
+    """
+
+    @wraps(original_chat_input)
+    def renova_chat_input(*args, **kwargs):
+        is_modal_ai = kwargs.get("key") == "ai_modal_input"
+        if is_modal_ai:
+            st.markdown(modal_css, unsafe_allow_html=True)
+
+        value = original_chat_input(*args, **kwargs)
+
+        if is_modal_ai:
+            try:
+                components.html(auto_scroll_js, height=0, scrolling=False)
+            except Exception:
+                pass
+        return value
+
+    st.chat_input = renova_chat_input
+    st._renova_modal_chat_patched = True
+
+
 try:
     _install_repository_cache()
     _install_access_cache()
+    _install_modal_chat_ux()
 except Exception:
-    # Performance nunca deve impedir o sistema de iniciar. Em qualquer cenário
-    # inesperado, o app continua funcionando com o comportamento original.
+    # Nenhuma otimização deve impedir o sistema de iniciar.
     pass
