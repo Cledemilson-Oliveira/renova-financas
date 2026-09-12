@@ -1,0 +1,40 @@
+name: RENOVA Finanças Fixar Composer IA
+
+on:
+  push:
+    paths:
+      - 'scripts/fixar_composer_chat_ia.py'
+      - '.github/workflows/fixar_composer_chat_ia.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Aplicar barra fixa do chat
+        run: python scripts/fixar_composer_chat_ia.py
+      - name: Validar sintaxe
+        run: python -m py_compile app.py
+      - name: Validar composer fixo
+        run: |
+          grep -q 'st-key-ai_chat_composer' app.py
+          grep -q 'render_input=False' app.py
+          grep -q 'APP_BUILD = "2026.09.12.3"' app.py
+      - name: Publicar correção
+        run: |
+          if git diff --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+          git config user.name 'RENOVA Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app.py
+          git commit -m 'fix(ui): manter barra de digitação fixa no chat da RENOVA IA'
+          git push
