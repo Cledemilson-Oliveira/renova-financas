@@ -1,0 +1,47 @@
+name: RENOVA Finanças Otimizar Performance e Chat
+
+on:
+  push:
+    paths:
+      - 'scripts/otimizar_performance_chat_modal.py'
+      - '.github/workflows/otimizar_performance_chat_modal.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Aplicar otimizações
+        run: python scripts/otimizar_performance_chat_modal.py
+
+      - name: Validar sintaxe
+        run: python -m py_compile app.py
+
+      - name: Validar cache e UX do chat
+        run: |
+          grep -q '_FINANCIAL_DATA_TTL_SECONDS = 15.0' app.py
+          grep -q '_cached_is_owner' app.py
+          grep -q '_cached_has_active_ai_subscription' app.py
+          grep -q '_scroll_ai_chat_to_bottom' app.py
+          grep -q 'renova-transaction-dialog-marker' app.py
+          grep -q 'font-size:16px!important' app.py
+
+      - name: Publicar otimizações
+        run: |
+          if git diff --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+          git config user.name 'RENOVA Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app.py
+          git commit -m 'perf(ui): reduzir consultas e estabilizar chat e modais'
+          git push
