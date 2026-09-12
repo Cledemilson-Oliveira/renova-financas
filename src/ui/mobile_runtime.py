@@ -138,7 +138,13 @@ def apply_mobile_runtime() -> None:
     """Ativa exclusivamente a camada visual do celular."""
     _install_safe_card_renderer()
     apply_mobile_styles()
-    _cleanup_desktop_shell_artifacts()
+
+    # A limpeza do shell desktop só precisa acontecer uma vez por sessão mobile.
+    # Repetir componentes/JS em todos os reruns deixava a troca entre módulos
+    # perceptivelmente mais lenta em aparelhos modestos.
+    if not st.session_state.get("_renova_mobile_shell_cleaned"):
+        _cleanup_desktop_shell_artifacts()
+        st.session_state["_renova_mobile_shell_cleaned"] = True
 
 
 def render_dataframe_mobile_runtime(
