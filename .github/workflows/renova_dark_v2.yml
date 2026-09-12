@@ -1,0 +1,75 @@
+name: RENOVA Dark V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/apply_renova_dark_v2.py'
+      - '.github/workflows/renova_dark_v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar-dark-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Sincronizar main atual
+        run: |
+          git fetch origin main
+          git pull --rebase origin main
+
+      - name: Aplicar RENOVA Dark V2
+        run: python scripts/apply_renova_dark_v2.py
+
+      - name: Validar sintaxe Python
+        run: |
+          python -m py_compile \
+            src/theme.py \
+            src/visual_system.py \
+            src/sidebar_runtime.py \
+            src/ui/desktop_shell.py \
+            scripts/apply_renova_dark_v2.py
+
+      - name: Validar identidade e card
+        run: |
+          grep -q '#061426' src/theme.py
+          grep -q '#19D9FF' src/theme.py
+          grep -q '#7457FF' src/theme.py
+          grep -q 'renova-ecosystem-offer' src/sidebar_runtime.py
+          grep -q 'Conhecer o Ecossistema RENOVA' src/sidebar_runtime.py
+          ! grep -q 'background:linear-gradient(110deg,#C99308,#FFCA2C' src/theme.py
+          grep -q 'primaryColor = "#19D9FF"' .streamlit/config.toml
+
+      - name: Mostrar arquivos alterados
+        run: git diff --stat
+
+      - name: Commit e push
+        run: |
+          if git diff --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+          git config user.name 'RENOVA Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src/theme.py src/visual_system.py src/sidebar_runtime.py src/ui/desktop_shell.py .streamlit/config.toml
+          git commit -m 'feat(ui): aplicar RENOVA Dark V2 e card do Ecossistema'
+          for tentativa in 1 2 3; do
+            if git push origin main; then
+              exit 0
+            fi
+            echo "Main avançou; sincronizando tentativa $tentativa..."
+            git pull --rebase origin main
+          done
+          exit 1
