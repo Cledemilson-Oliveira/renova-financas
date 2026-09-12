@@ -42,15 +42,23 @@ def current_device() -> str:
     if forced:
         return forced
 
+    ua = _user_agent().lower()
+    compact_tablet = bool(re.search(r"ipad|tablet|kindle|silk", ua))
+
+    # Recalcula a partir do User-Agent em cada rerun. Antes, uma classificação
+    # equivocada ficava presa na sessão e o celular continuava recebendo o
+    # runtime desktop até o usuário sair/limpar a sessão.
+    if ua:
+        mode = "mobile" if any(token in ua for token in MOBILE_TOKENS) or compact_tablet else "desktop"
+        st.session_state.renova_device_mode = mode
+        return mode
+
+    # Se o proxy não expuser User-Agent, só então reutilizamos o último valor.
     cached = str(st.session_state.get("renova_device_mode") or "").strip().lower()
     if cached in {"mobile", "desktop"}:
         return cached
 
-    ua = _user_agent().lower()
-    compact_tablet = bool(re.search(r"ipad|tablet|kindle|silk", ua))
-    mode = "mobile" if any(token in ua for token in MOBILE_TOKENS) or compact_tablet else "desktop"
-    st.session_state.renova_device_mode = mode
-    return mode
+    return "desktop"
 
 
 def is_mobile() -> bool:
