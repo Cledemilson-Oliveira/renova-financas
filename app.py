@@ -51,7 +51,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.12.2"
+APP_BUILD = "2026.09.12.3"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -1439,7 +1439,7 @@ def _restore_ai_conversation(index: int) -> None:
         st.session_state.pop(key, None)
 
 
-def render_ai_chat(input_key: str, *, fragment_rerun: bool = False, show_suggestions: bool = False) -> None:
+def render_ai_chat(input_key: str, *, fragment_rerun: bool = False, show_suggestions: bool = False, render_input: bool = True) -> None:
     _ensure_ai_messages()
 
     if show_suggestions and not any(message.get("role") == "user" for message in st.session_state.ai_messages):
@@ -1487,6 +1487,11 @@ def render_ai_chat(input_key: str, *, fragment_rerun: bool = False, show_suggest
                     _execute_ai_prompt(retry_prompt)
                 st.rerun(scope="fragment" if fragment_rerun else "app")
 
+    if render_input:
+        render_ai_input(input_key, fragment_rerun=fragment_rerun)
+
+
+def render_ai_input(input_key: str, *, fragment_rerun: bool = False) -> None:
     prompt = st.chat_input("Digite sua mensagem…", key=input_key)
     if prompt:
         st.session_state.ai_last_prompt = prompt
@@ -1544,8 +1549,8 @@ def open_ai_dialog() -> None:
         .ai-panel-tools{display:flex;justify-content:flex-end;gap:6px}
 
         .st-key-ai_chat_modal_shell{
-          height:calc(min(720px,85vh) - 150px)!important;overflow-y:auto!important;overflow-x:hidden!important;
-          padding:12px 12px 98px!important;background:
+          height:calc(min(720px,85vh) - 188px)!important;overflow-y:auto!important;overflow-x:hidden!important;
+          padding:12px 12px 18px!important;background:
             radial-gradient(circle at 18% 8%,rgba(24,223,165,.035),transparent 30%),
             linear-gradient(180deg,#0A1A2A,#071522)!important;
           scrollbar-width:thin;scrollbar-color:rgba(25,217,255,.28) transparent;
@@ -1563,17 +1568,23 @@ def open_ai_dialog() -> None:
         .st-key-ai_chat_modal_shell [data-testid="stChatMessageAvatarUser"],
         .st-key-ai_chat_modal_shell [data-testid="stChatMessageAvatarAssistant"]{transform:scale(.82)}
 
-        .st-key-ai_chat_modal_shell [data-testid="stChatInput"]{
-          position:sticky!important;bottom:0!important;z-index:30!important;margin-top:16px!important;
-          min-height:54px!important;border-radius:17px!important;border:1px solid rgba(25,217,255,.24)!important;
-          background:#102438!important;box-shadow:0 -14px 30px rgba(7,21,34,.90)!important;
+        .st-key-ai_chat_composer{
+          position:absolute!important;left:0!important;right:0!important;bottom:0!important;z-index:80!important;
+          padding:10px 12px 8px!important;border-top:1px solid rgba(255,255,255,.08)!important;
+          background:rgba(8,24,39,.985)!important;backdrop-filter:blur(18px)!important;
+          box-shadow:0 -16px 34px rgba(0,0,0,.38)!important;
         }
-        .st-key-ai_chat_modal_shell [data-testid="stChatInput"] textarea{min-height:52px!important;max-height:132px!important;color:#F7FBFF!important}
-        .st-key-ai_chat_modal_shell [data-testid="stChatInput"],
-        .st-key-ai_chat_modal_shell [data-testid="stChatInput"] textarea,
-        .st-key-ai_chat_modal_shell [data-testid="stChatInput"] button{pointer-events:auto!important;position:relative!important;z-index:60!important}
-        .st-key-ai_chat_modal_shell [data-testid="stChatInput"] textarea::placeholder{color:#93AFC1!important;opacity:1!important}
-        .ai-disclaimer{text-align:center;color:#7F9AAD;font-size:.60rem;margin:-82px 18px 0;position:relative;z-index:35;pointer-events:none}
+        .st-key-ai_chat_composer [data-testid="stChatInput"]{
+          position:relative!important;inset:auto!important;margin:0!important;min-height:54px!important;
+          border-radius:17px!important;border:1px solid rgba(25,217,255,.28)!important;
+          background:#102438!important;box-shadow:none!important;pointer-events:auto!important;
+        }
+        .st-key-ai_chat_composer [data-testid="stChatInput"] textarea{
+          min-height:52px!important;max-height:132px!important;color:#F7FBFF!important;pointer-events:auto!important;
+        }
+        .st-key-ai_chat_composer [data-testid="stChatInput"] button{pointer-events:auto!important}
+        .st-key-ai_chat_composer [data-testid="stChatInput"] textarea::placeholder{color:#93AFC1!important;opacity:1!important}
+        .ai-disclaimer{text-align:center;color:#7F9AAD;font-size:.60rem;margin:5px 8px 0;position:relative;z-index:82;pointer-events:none}
 
         .ai-welcome-card{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:15px;margin:3px 0 10px;
           border:1px solid rgba(25,217,255,.13);background:rgba(16,40,58,.70)}
@@ -1585,7 +1596,8 @@ def open_ai_dialog() -> None:
 
         @media(max-width:768px){
           div[role="dialog"]{inset:0!important;width:100vw!important;max-width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important;border:0!important}
-          .st-key-ai_chat_modal_shell{height:calc(100dvh - 140px)!important;padding:10px 9px 104px!important}
+          .st-key-ai_chat_modal_shell{height:calc(100dvh - 188px)!important;padding:10px 9px 18px!important}
+          .st-key-ai_chat_composer{padding-bottom:max(10px,env(safe-area-inset-bottom))!important}
           .st-key-ai_chat_modal_shell [data-testid="stChatMessage"]{max-width:88%!important}
           .st-key-ai_chat_modal_shell [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]){max-width:84%!important}
           .ai-panel-header{padding-top:max(12px,env(safe-area-inset-top))}
@@ -1670,8 +1682,12 @@ def open_ai_dialog() -> None:
             "ai_modal_input",
             fragment_rerun=True,
             show_suggestions=bool(st.session_state.get("ai_show_suggestions", True)),
+            render_input=False,
         )
-    st.markdown('<div class="ai-disclaimer">A RENOVA IA pode cometer erros. Confira informações importantes.</div>', unsafe_allow_html=True)
+
+    with st.container(key="ai_chat_composer"):
+        render_ai_input("ai_modal_input", fragment_rerun=True)
+        st.markdown('<div class="ai-disclaimer">A RENOVA IA pode cometer erros. Confira informações importantes.</div>', unsafe_allow_html=True)
 
 
 def render_ai() -> None:
