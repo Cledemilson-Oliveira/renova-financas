@@ -3,8 +3,8 @@ from __future__ import annotations
 import streamlit as st
 
 
-_FREE_CTA_TARGET = "/Criar_Conta"
-_PREMIUM_CTA_TARGET = "/Criar_Conta?plan=premium"
+_FREE_CTA_TARGET = "#criar-conta"
+_PREMIUM_CTA_TARGET = "/Assinar_RENOVA_IA"
 
 
 def _upgrade_sales_copy(body: str) -> str:
@@ -35,8 +35,8 @@ def _upgrade_sales_copy(body: str) -> str:
 def install_public_entry_runtime() -> None:
     """Conecta CTAs públicos a rotas reais e mantém a oferta comercial consistente.
 
-    Os CTAs usam ``target=_self`` de forma explícita para impedir que o cadastro
-    seja aberto em uma nova aba pelo navegador/host do Streamlit.
+    O CTA gratuito permanece na própria tela inicial/login. Todo CTA de assinatura
+    aponta para a página comercial RENOVA IA Personal, sem passar pelo cadastro grátis.
     """
     if getattr(st, "_renova_public_entry_runtime_installed", False):
         return
@@ -45,6 +45,8 @@ def install_public_entry_runtime() -> None:
 
     def markdown_with_public_routes(body, *args, **kwargs):
         if isinstance(body, str):
+            # Compatibilidade: qualquer link antigo de Premium deixa de passar pelo cadastro gratuito.
+            body = body.replace('/Criar_Conta?plan=premium', _PREMIUM_CTA_TARGET)
             body = body.replace(
                 'href="#criar-conta"',
                 f'href="{_FREE_CTA_TARGET}" target="_self"',

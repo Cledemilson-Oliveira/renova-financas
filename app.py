@@ -1236,48 +1236,8 @@ def render_ai_chat(input_key: str, *, fragment_rerun: bool = False) -> None:
 
 
 def render_ai_subscription_sales() -> None:
-    plan = get_ai_plan() if REAL_MODE else None
-    price = float(plan.get("price", 9.90)) if plan else 9.90
-    checkout_url = str(plan.get("checkout_url") or "") if plan else ""
-
-    hero(
-        "Personalize sua <strong>RENOVA IA</strong>",
-        "A IA Padrão já é gratuita. A assinatura libera memória, regras e treinamento exclusivos para sua conta.",
-    )
-
-    st.markdown(
-        f"""
-        <section class="ai-subscribe-gate">
-          <div class="sales-eyebrow">RENOVA IA PERSONALIZADA</div>
-          <h2>Treinamento exclusivo por <strong>R$ {price:,.2f}/mês</strong></h2>
-          <p>
-            Continue usando a IA Padrão gratuitamente para lançar receitas, despesas, consultar e analisar.
-            No Premium, você ensina o seu jeito de trabalhar e a IA passa a usar memória privada da sua conta.
-          </p>
-          <div class="gate-benefits">
-            <span>✓ Tudo da IA Padrão gratuita</span>
-            <span>✓ Regras e preferências permanentes</span>
-            <span>✓ Vocabulário e conta padrão</span>
-            <span>✓ Estudo de PDFs e YouTube</span>
-            <span>✓ Memória personalizada privada</span>
-          </div>
-        </section>
-        """.replace("9,90", f"{price:.2f}".replace(".", ",")),
-        unsafe_allow_html=True,
-    )
-
-    if checkout_url:
-        st.link_button(
-            "Ativar IA Personalizada por R$ 9,90/mês com Mercado Pago",
-            checkout_url,
-            use_container_width=True,
-        )
-        st.caption("Após a confirmação do Mercado Pago, o treinamento personalizado será liberado automaticamente.")
-    else:
-        st.info(
-            "A integração de checkout do Mercado Pago está sendo conectada. "
-            "O plano já está cadastrado e o controle de acesso já está ativo."
-        )
+    # Regra de funil: assinatura sempre passa pela página comercial antes do checkout.
+    st.switch_page("pages/Assinar_RENOVA_IA.py")
 
 
 @st.dialog("🤖 Assistente Financeiro IA", width="large")

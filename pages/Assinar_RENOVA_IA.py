@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from html import escape
 from textwrap import dedent
 
 import streamlit as st
 
-from src.mercado_pago_checkout import create_subscription_checkout
 from src.repository import get_ai_plan, has_active_ai_subscription
 from src.supabase_client import current_user, is_authenticated, is_configured
 from src.theme import apply_renova_theme, brand_block
@@ -21,19 +19,27 @@ st.set_page_config(
 apply_renova_theme()
 
 
-with st.sidebar:
-    brand_block()
-    st.page_link("app.py", label="Voltar ao RENOVA Finanças", icon="🏠", use_container_width=True)
+if is_authenticated():
+    with st.sidebar:
+        brand_block()
+        st.page_link("app.py", label="Voltar ao RENOVA Finanças", icon="🏠", use_container_width=True)
+else:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"],
+        [data-testid="stSidebarCollapsedControl"],
+        [data-testid="stSidebarCollapseButton"]{display:none!important}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 if not is_configured():
     st.error("O Supabase ainda não está configurado neste ambiente.")
     st.stop()
 
-if not is_authenticated():
-    st.session_state["nav_page"] = "Assinar RENOVA IA"
-    st.switch_page("app.py")
-
-user = current_user()
+user = current_user() if is_authenticated() else None
 uid = str(user.id) if user and getattr(user, "id", None) else ""
 
 try:
@@ -45,7 +51,11 @@ try:
 except Exception:
     pass
 
-plan = get_ai_plan() or {}
+try:
+    plan = get_ai_plan() or {}
+except Exception:
+    # A oferta pública precisa carregar mesmo quando a política RLS não expõe a tabela ao visitante anônimo.
+    plan = {}
 price = float(plan.get("price") or 9.90)
 price_label = f"{price:.2f}".replace(".", ",")
 normal_price = 29.90
@@ -386,34 +396,11 @@ sales_html = f"""
 """
 st.markdown(dedent(sales_html), unsafe_allow_html=True)
 
+st.caption("🔐 O próximo passo abre o checkout. Seus dados de acesso e pagamento são informados somente na etapa de contratação.")
+
 if st.button(
-    f"✨ ASSINAR RENOVA IA PERSONAL • R$ {price_label}/MÊS",
+    f"💳 IR PARA O CHECKOUT SEGURO • R$ {price_label}/MÊS",
     type="primary",
     use_container_width=True,
 ):
-    try:
-        with st.spinner("Preparando seu checkout seguro..."):
-            checkout = create_subscription_checkout("renova_ia")
-
-        if checkout.get("already_active"):
-            st.success("Sua assinatura já está ativa.")
-            st.page_link("pages/Treinamento_IA.py", label="🧠 Ir para minha IA Personalizada", use_container_width=True)
-        else:
-            checkout_url = str(checkout.get("checkout_url") or "").strip()
-            if not checkout_url:
-                st.error("O Mercado Pago não devolveu o endereço do checkout.")
-            else:
-                safe_url = escape(checkout_url, quote=True)
-                st.success("Checkout criado. Continue no Mercado Pago para concluir a assinatura.")
-                st.markdown(
-                    f'<a href="{safe_url}" target="_self" rel="noopener" '
-                    'style="display:flex;align-items:center;justify-content:center;min-height:56px;'
-                    'border-radius:16px;text-decoration:none;font-weight:950;font-size:1.02rem;'
-                    'background:linear-gradient(120deg,#FFD54F,#F0AA00);color:#071521;'
-                    'box-shadow:0 14px 36px rgba(255,190,0,.26);margin-top:10px;">'
-                    'ABRIR CHECKOUT SEGURO NO MERCADO PAGO →</a>',
-                    unsafe_allow_html=True,
-                )
-    except Exception as exc:
-        st.error(str(exc))
-        st.caption("Se ocorrer uma falha, nenhuma assinatura parcial é considerada concluída.")
+    st.switch_page("pages/Checkout_Assinatura.py")
