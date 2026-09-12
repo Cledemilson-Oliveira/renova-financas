@@ -6,16 +6,16 @@ import streamlit.components.v1 as components
 from src.visual_system import RENOVA_LOGO_URL, configure_plotly
 
 PALETTE = {
-    "bg": "#02070D",
-    "surface": "#06131F",
-    "surface_2": "#081C2B",
-    "gold": "#FFD75A",
-    "gold_dark": "#D9A520",
-    "blue": "#00AEEF",
-    "blue_dark": "#05225A",
-    "text": "#F7FBFF",
-    "muted": "#AFC3D2",
-    "success": "#35D07F",
+    "bg": "#061426",
+    "surface": "#0B2038",
+    "surface_2": "#102B49",
+    "gold": "#7457FF",       # alias legado: agora é o acento violeta RENOVA
+    "gold_dark": "#5E45E8",
+    "blue": "#19D9FF",
+    "blue_dark": "#087FF5",
+    "text": "#F5FAFF",
+    "muted": "#A7BED4",
+    "success": "#18DFA5",
     "danger": "#FF5E6C",
     "info": "#68D3FF",
 }
@@ -27,17 +27,17 @@ def apply_renova_theme() -> None:
         """
 <style>
 :root{
-  --rv-bg:#02070D;
-  --rv-bg2:#03121E;
-  --rv-panel:#06131F;
-  --rv-panel2:#081C2B;
-  --rv-blue:#00AEEF;
-  --rv-blue2:#0077FF;
-  --rv-gold:#FFD75A;
-  --rv-gold2:#D9A520;
-  --rv-text:#F7FBFF;
-  --rv-muted:#AFC3D2;
-  --rv-green:#35D07F;
+  --rv-bg:#061426;
+  --rv-bg2:#081A2F;
+  --rv-panel:#0B2038;
+  --rv-panel2:#102B49;
+  --rv-blue:#19D9FF;
+  --rv-blue2:#087FF5;
+  --rv-gold:#7457FF;
+  --rv-gold2:#A997FF;
+  --rv-text:#F5FAFF;
+  --rv-muted:#A7BED4;
+  --rv-green:#18DFA5;
   --rv-red:#FF5E6C;
 }
 
@@ -284,24 +284,24 @@ div[data-testid="stNumberInput"] input{
   background:linear-gradient(145deg,rgba(5,20,32,.82),rgba(2,9,15,.72))!important;
 }
 
-/* BOTÕES */
+/* BOTÕES — RENOVA Dark V2 */
 .stButton>button,.stLinkButton>a,[data-testid="stFormSubmitButton"] button,[data-testid="stDownloadButton"] button{
-  background:linear-gradient(110deg,#C99308,#FFCA2C 30%,#FFF0A3 49%,#FFD75A 63%,#D8A716)!important;
-  color:#06111B!important;-webkit-text-fill-color:#06111B!important;
-  border:1px solid #FFE57B!important;border-radius:11px!important;
+  background:linear-gradient(112deg,#087FF5 0%,#19D9FF 48%,#7457FF 100%)!important;
+  color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;
+  border:1px solid rgba(25,217,255,.76)!important;border-radius:11px!important;
   font-weight:950!important;min-height:43px!important;
-  box-shadow:0 6px 17px rgba(0,0,0,.25),0 0 11px rgba(255,202,44,.10)!important;
+  box-shadow:0 7px 20px rgba(0,0,0,.28),0 0 16px rgba(25,217,255,.14)!important;
   transition:.18s ease!important;
 }
-.stButton>button *,.stLinkButton>a *{color:#06111B!important;-webkit-text-fill-color:#06111B!important}
+.stButton>button *,.stLinkButton>a *{color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important}
 .stButton>button:hover,.stLinkButton>a:hover,[data-testid="stFormSubmitButton"] button:hover,[data-testid="stDownloadButton"] button:hover{
-  background:linear-gradient(135deg,#03101B,#07305B 60%,#02070D)!important;
-  color:var(--rv-gold)!important;-webkit-text-fill-color:var(--rv-gold)!important;
-  border-color:var(--rv-gold)!important;
-  box-shadow:0 0 20px rgba(0,174,239,.22),0 0 15px rgba(255,215,90,.16)!important;
+  background:linear-gradient(112deg,#7457FF 0%,#087FF5 48%,#19D9FF 100%)!important;
+  color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;
+  border-color:#A7F2FF!important;
+  box-shadow:0 10px 26px rgba(0,0,0,.34),0 0 24px rgba(25,217,255,.22),0 0 18px rgba(116,87,255,.16)!important;
   transform:translateY(-1px)!important;
 }
-.stButton>button:hover *,.stLinkButton>a:hover *{color:var(--rv-gold)!important;-webkit-text-fill-color:var(--rv-gold)!important}
+.stButton>button:hover *,.stLinkButton>a:hover *{color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important}
 
 /* TABS */
 [data-baseweb="tab-list"]{
@@ -517,6 +517,93 @@ body:has(input[aria-label="Senha"]) [data-testid="stForm"]{
   padding:8px 10px;
   background:rgba(6,19,31,.70);
 }
+
+
+
+/* ========================================================================
+   RENOVA DARK V2 • Identidade oficial inspirada na campanha institucional
+   ======================================================================== */
+html,body,.stApp{background:#061426!important;color:#F5FAFF!important}
+.stApp{
+  background-image:
+    linear-gradient(rgba(25,217,255,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(25,217,255,.035) 1px,transparent 1px),
+    radial-gradient(circle at 46% -8%,rgba(8,127,245,.18),transparent 38%),
+    radial-gradient(circle at 92% 14%,rgba(116,87,255,.14),transparent 27%),
+    radial-gradient(circle at 4% 82%,rgba(25,217,255,.07),transparent 28%),
+    linear-gradient(135deg,#061426 0%,#081A2F 52%,#061426 100%)!important;
+}
+[data-testid="stHeader"]{
+  background:rgba(6,20,38,.88)!important;
+  border-bottom:1px solid rgba(25,217,255,.12)!important;
+}
+[data-testid="stSidebar"]>div:first-child{
+  background:linear-gradient(180deg,rgba(7,20,37,.98),rgba(8,26,47,.97))!important;
+  border-right:1px solid rgba(25,217,255,.20)!important;
+}
+.renova-brand{
+  border-color:rgba(25,217,255,.30)!important;
+  background:radial-gradient(circle at 50% 0%,rgba(25,217,255,.16),transparent 48%),linear-gradient(145deg,#0B2038,#071425)!important;
+}
+.renova-brand .gold,.renova-brand .status-chip.gold{color:#A997FF!important}
+.renova-brand .status-chip.gold{border-color:rgba(116,87,255,.34)!important;background:rgba(116,87,255,.09)!important}
+.renova-brand:after,.metric-card:before,div[data-testid="stMetric"]:before{
+  background:linear-gradient(90deg,transparent,#19D9FF,#087FF5,#7457FF,transparent)!important;
+}
+.renova-hero{
+  border-color:rgba(25,217,255,.30)!important;
+  background:linear-gradient(rgba(25,217,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(25,217,255,.04) 1px,transparent 1px),radial-gradient(circle at 88% 12%,rgba(25,217,255,.18),transparent 28%),radial-gradient(circle at 7% 115%,rgba(116,87,255,.13),transparent 34%),linear-gradient(125deg,#08192C 0%,#0B2038 48%,#061426 100%)!important;
+}
+.renova-hero:before{color:#19D9FF!important;text-shadow:0 0 15px rgba(25,217,255,.20)!important}
+.renova-hero strong{color:#A997FF!important;text-shadow:0 0 18px rgba(116,87,255,.18)!important}
+.metric-card,div[data-testid="stMetric"],[data-testid="stExpander"]{
+  border-color:rgba(25,217,255,.24)!important;
+  background:radial-gradient(circle at 92% 8%,rgba(25,217,255,.08),transparent 27%),linear-gradient(145deg,#0B2038,#0A1C31)!important;
+}
+.metric-card:hover,div[data-testid="stMetric"]:hover,[data-testid="stExpander"]:hover{border-color:rgba(116,87,255,.56)!important}
+.metric-card .hint{color:#19D9FF!important}
+[data-baseweb="input"]>div,[data-baseweb="textarea"]>div,[data-baseweb="select"]>div,div[data-testid="stNumberInput"] input{
+  background:#0A1C31!important;border-color:rgba(25,217,255,.28)!important
+}
+[data-baseweb="input"]:focus-within,[data-baseweb="textarea"]:focus-within,[data-baseweb="select"]>div:focus-within{
+  border-color:#19D9FF!important;box-shadow:0 0 0 2px rgba(25,217,255,.10),0 0 18px rgba(25,217,255,.10)!important
+}
+[data-baseweb="tab-list"]{background:linear-gradient(145deg,#0B2038,#081A2F)!important;border-color:rgba(25,217,255,.22)!important}
+[data-baseweb="tab"][aria-selected="true"]{
+  color:#FFFFFF!important;border-color:rgba(25,217,255,.62)!important;
+  background:linear-gradient(120deg,rgba(8,127,245,.34),rgba(25,217,255,.20),rgba(116,87,255,.30))!important;
+  box-shadow:0 0 20px rgba(25,217,255,.10)!important
+}
+[data-testid="stPlotlyChart"],[data-testid="stDataFrame"]{
+  border-color:rgba(25,217,255,.20)!important;
+  background:linear-gradient(145deg,#0B2038,#081A2F)!important;
+  box-shadow:0 12px 30px rgba(0,0,0,.24)!important
+}
+[data-testid="stAlert"]{border-color:rgba(25,217,255,.22)!important;box-shadow:inset 3px 0 0 rgba(25,217,255,.22)!important}
+[data-testid="stProgress"]>div>div>div>div{background:linear-gradient(90deg,#087FF5,#19D9FF,#7457FF)!important}
+.sales-cta.primary{background:linear-gradient(112deg,#087FF5,#19D9FF 50%,#7457FF)!important;color:#FFFFFF!important;border-color:rgba(25,217,255,.72)!important}
+.sales-badge,.sales-eyebrow,.popular{color:#19D9FF!important}
+.sales-hero h1 strong,.sales-section h2 strong,.ai-sales h2 strong,.pricing-section h2 strong,.sales-final h2 strong{color:#A997FF!important}
+.price-card.featured{border-color:rgba(116,87,255,.58)!important;box-shadow:0 18px 45px rgba(0,0,0,.35),0 0 26px rgba(116,87,255,.10)!important}
+.st-key-renova_ai_fab button{
+  border-color:rgba(25,217,255,.72)!important;
+  background:linear-gradient(135deg,#0B2038,#0A2E52 58%,#172B55)!important;
+  color:#F5FAFF!important;-webkit-text-fill-color:#F5FAFF!important;
+  box-shadow:0 16px 38px rgba(0,0,0,.42),0 0 24px rgba(25,217,255,.20),0 0 18px rgba(116,87,255,.14)!important
+}
+.st-key-renova_ai_fab button *{color:#F5FAFF!important;-webkit-text-fill-color:#F5FAFF!important}
+.st-key-renova_ai_fab button:hover{border-color:#A997FF!important;background:linear-gradient(135deg,#172B55,#087FF5 58%,#0B2038)!important;color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important}
+.st-key-urgencies_open_transactions button{
+  background:#0B2038!important;border:1px solid rgba(25,217,255,.58)!important;color:#F5FAFF!important;-webkit-text-fill-color:#F5FAFF!important
+}
+.st-key-urgencies_open_transactions button *{color:#F5FAFF!important;-webkit-text-fill-color:#F5FAFF!important}
+.st-key-urgencies_open_ai button{
+  background:linear-gradient(112deg,#087FF5,#19D9FF 48%,#7457FF)!important;border:1px solid rgba(25,217,255,.78)!important;color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important
+}
+.st-key-urgencies_open_ai button *{color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important}
+[data-testid="stDialog"]>div{border-color:rgba(25,217,255,.34)!important;background:linear-gradient(145deg,#08192C,#061426)!important}
+#renova-mobile-nav .rv-mobile-brand span{color:#19D9FF!important}
+#renova-mobile-nav .rv-mobile-nav-inner{border-color:rgba(25,217,255,.42)!important}
 
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;scroll-behavior:auto!important;transition:none!important}

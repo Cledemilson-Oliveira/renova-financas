@@ -650,29 +650,45 @@ def render_sidebar_collapse_control(st_ref=st) -> None:
 
 
 def render_ecosystem_product_card(st_ref=st) -> None:
-    st_ref.markdown(
-        f"""
-        <section class="renova-product-card" aria-label="Produto do Ecossistema RENOVA">
-          <div class="renova-product-kicker">PRODUTO OFICIAL</div>
-          <div class="renova-product-title">RENOVA Finanças</div>
-          <div class="renova-product-subtitle">Uma solução integrada ao Ecossistema RENOVA.</div>
-          <div class="renova-product-grid">
-            <div class="renova-product-cell">
-              <span>DESENVOLVIDO POR</span>
-              <strong>Cledemilson Oliveira</strong>
-            </div>
-            <div class="renova-product-cell">
-              <span>ECOSSISTEMA</span>
-              <strong>RENOVA</strong>
-            </div>
-          </div>
-          <a class="renova-ecosystem-link" href="{ECOSSISTEMA_RENOVA_PUBLIC_URL}" target="_blank" rel="noopener noreferrer">
-            Conhecer o Ecossistema RENOVA ↗
-          </a>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
+    markup = f"""
+    <style>
+      .renova-ecosystem-offer{{
+        position:relative;overflow:hidden;margin:10px 0 5px;padding:14px;border-radius:16px;
+        border:1px solid rgba(25,217,255,.38);
+        background:radial-gradient(circle at 100% 0%,rgba(116,87,255,.18),transparent 42%),linear-gradient(145deg,#0B2038,#081A2F);
+        box-shadow:0 12px 28px rgba(0,0,0,.22),0 0 20px rgba(25,217,255,.06);
+        font-family:Inter,Arial,sans-serif;
+      }}
+      .renova-ecosystem-offer:before{{
+        content:"";position:absolute;left:0;right:0;top:0;height:2px;
+        background:linear-gradient(90deg,transparent,#19D9FF,#087FF5,#7457FF,transparent)
+      }}
+      .renova-offer-kicker{{color:#19D9FF;font-size:.52rem;font-weight:950;letter-spacing:.14em;margin-bottom:7px}}
+      .renova-offer-title{{color:#F5FAFF;font-size:.92rem;font-weight:950;line-height:1.15}}
+      .renova-offer-copy{{color:#A7BED4;font-size:.63rem;line-height:1.45;margin:6px 0 10px}}
+      .renova-offer-benefits{{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 10px}}
+      .renova-offer-benefit{{padding:7px 8px;border-radius:9px;background:rgba(25,217,255,.055);border:1px solid rgba(25,217,255,.13);color:#DDF8FF;font-size:.52rem;font-weight:850;line-height:1.25}}
+      .renova-offer-cta{{display:flex;align-items:center;justify-content:center;min-height:35px;padding:0 10px;border-radius:10px;text-decoration:none!important;background:linear-gradient(112deg,#087FF5,#19D9FF 50%,#7457FF);border:1px solid rgba(25,217,255,.72);color:#FFFFFF!important;font-size:.58rem;font-weight:950;box-shadow:0 7px 18px rgba(0,0,0,.22),0 0 14px rgba(25,217,255,.10);transition:.18s ease}}
+      .renova-offer-cta:hover{{transform:translateY(-1px);filter:brightness(1.08)}}
+    </style>
+    <section class="renova-ecosystem-offer" aria-label="Oferta Ecossistema RENOVA">
+      <div class="renova-offer-kicker">ECOSSISTEMA RENOVA</div>
+      <div class="renova-offer-title">Seu próximo nível de gestão digital</div>
+      <div class="renova-offer-copy">Ferramentas, conteúdos e oportunidades para organizar, vender, crescer e acompanhar seus resultados.</div>
+      <div class="renova-offer-benefits">
+        <div class="renova-offer-benefit">⚙️ Gestão digital</div>
+        <div class="renova-offer-benefit">🤝 Área de afiliados</div>
+        <div class="renova-offer-benefit">🛍️ Produtos e serviços</div>
+        <div class="renova-offer-benefit">✦ IA de apoio</div>
+      </div>
+      <a class="renova-offer-cta" href="{ECOSSISTEMA_RENOVA_PUBLIC_URL}" target="_blank" rel="noopener noreferrer">Conhecer o Ecossistema RENOVA ↗</a>
+    </section>
+    """
+    html_renderer = getattr(st_ref, "html", None)
+    if callable(html_renderer):
+        html_renderer(markup)
+    else:
+        st_ref.markdown(markup, unsafe_allow_html=True)
 
 
 def auto_collapse_sidebar_robust() -> None:

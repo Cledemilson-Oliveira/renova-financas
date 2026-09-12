@@ -63,7 +63,7 @@ def inject_desktop_shell() -> None:
           #renova-fin-sidebar-close{
             appearance:none;
             -webkit-appearance:none;
-            border:1px solid rgba(247,214,100,.88);
+            border:1px solid rgba(25,217,255,.64);
             font-weight:950;
             letter-spacing:.015em;
             cursor:pointer;
@@ -79,7 +79,7 @@ def inject_desktop_shell() -> None:
             min-height:46px;
             padding:0 16px;
             border-radius:14px;
-            background:linear-gradient(120deg,#061827 0%,#07508a 65%,#0090f0 100%);
+            background:linear-gradient(120deg,#0B2038 0%,#087FF5 58%,#19D9FF 100%);
             color:#fff;
             -webkit-text-fill-color:#fff;
             align-items:center;
@@ -96,14 +96,14 @@ def inject_desktop_shell() -> None:
             margin:7px 7px 9px;
             border-radius:13px;
             background:linear-gradient(120deg,#071725,#0b3454);
-            color:#ffe477;
-            -webkit-text-fill-color:#ffe477;
+            color:#19D9FF;
+            -webkit-text-fill-color:#19D9FF;
             font-size:.76rem;
           }
           #renova-fin-sidebar-open:hover,
           #renova-fin-sidebar-close:hover{
             transform:translateY(-1px);
-            border-color:#fff0a3;
+            border-color:#A997FF;
           }
 
           .renova-nav-heading{

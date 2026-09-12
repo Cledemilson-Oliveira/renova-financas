@@ -14,17 +14,17 @@ RENOVA_LOGO_URL = (
 )
 
 COLORS = {
-    "bg": "#02070D",
-    "panel": "#06131F",
-    "panel_2": "#081C2B",
-    "blue": "#00AEEF",
-    "blue_2": "#0077FF",
-    "gold": "#FFD75A",
-    "gold_2": "#D9A520",
-    "green": "#35D07F",
+    "bg": "#061426",
+    "panel": "#0B2038",
+    "panel_2": "#102B49",
+    "blue": "#19D9FF",
+    "blue_2": "#087FF5",
+    "gold": "#7457FF",
+    "gold_2": "#A997FF",
+    "green": "#18DFA5",
     "red": "#FF5E6C",
-    "white": "#F7FBFF",
-    "muted": "#AFC3D2",
+    "white": "#F5FAFF",
+    "muted": "#A7BED4",
 }
 
 _DATE_COLUMNS = {
@@ -408,20 +408,20 @@ def configure_plotly() -> None:
                 COLORS["gold"],
                 COLORS["green"],
                 COLORS["red"],
-                "#7B8CFF",
-                "#19D3F3",
-                "#FF9F40",
+                "#A997FF",
+                "#4A9DFF",
+                "#18DFA5",
             ],
             xaxis={
                 "gridcolor": "rgba(0,174,239,.10)",
-                "linecolor": "rgba(255,215,90,.18)",
+                "linecolor": "rgba(116,87,255,.20)",
                 "zerolinecolor": "rgba(255,255,255,.08)",
                 "tickfont": {"color": COLORS["muted"]},
                 "title": {"font": {"color": COLORS["muted"]}},
             },
             yaxis={
                 "gridcolor": "rgba(0,174,239,.10)",
-                "linecolor": "rgba(255,215,90,.18)",
+                "linecolor": "rgba(116,87,255,.20)",
                 "zerolinecolor": "rgba(255,255,255,.08)",
                 "tickfont": {"color": COLORS["muted"]},
                 "title": {"font": {"color": COLORS["muted"]}},
