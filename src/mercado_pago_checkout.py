@@ -8,7 +8,7 @@ import streamlit as st
 from .supabase_client import _secret
 
 
-TRANSPARENT_PAYMENT_FUNCTION = "mercado-pago-create-subscription"
+TRANSPARENT_PAYMENT_FUNCTION = "mercado-pago-transparent"
 
 
 def _access_token() -> str:
