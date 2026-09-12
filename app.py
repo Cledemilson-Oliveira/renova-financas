@@ -1514,7 +1514,7 @@ def open_ai_dialog() -> None:
         """
         <style>
         /* RENOVA IA • painel flutuante desktop / tela cheia mobile */
-        div[data-testid="stDialog"]{background:transparent!important;pointer-events:none!important}
+        div[data-testid="stDialog"]{background:transparent!important;pointer-events:auto!important}
         div[role="dialog"]{
           position:fixed!important;right:24px!important;bottom:22px!important;left:auto!important;top:auto!important;
           transform:none!important;width:440px!important;max-width:calc(100vw - 32px)!important;
@@ -1569,6 +1569,9 @@ def open_ai_dialog() -> None:
           background:#102438!important;box-shadow:0 -14px 30px rgba(7,21,34,.90)!important;
         }
         .st-key-ai_chat_modal_shell [data-testid="stChatInput"] textarea{min-height:52px!important;max-height:132px!important;color:#F7FBFF!important}
+        .st-key-ai_chat_modal_shell [data-testid="stChatInput"],
+        .st-key-ai_chat_modal_shell [data-testid="stChatInput"] textarea,
+        .st-key-ai_chat_modal_shell [data-testid="stChatInput"] button{pointer-events:auto!important;position:relative!important;z-index:60!important}
         .st-key-ai_chat_modal_shell [data-testid="stChatInput"] textarea::placeholder{color:#93AFC1!important;opacity:1!important}
         .ai-disclaimer{text-align:center;color:#7F9AAD;font-size:.60rem;margin:-82px 18px 0;position:relative;z-index:35;pointer-events:none}
 
