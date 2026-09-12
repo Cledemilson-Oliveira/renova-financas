@@ -41,9 +41,10 @@ jobs:
           runtime = Path('src/public_entry_runtime.py').read_text(encoding='utf-8')
           signup = Path('pages/Criar_Conta.py').read_text(encoding='utf-8')
 
-          assert entry._FREE_CTA_TARGET == '/Criar_Conta'
-          assert entry._PREMIUM_CTA_TARGET == '/Criar_Conta?plan=premium'
+          assert entry._FREE_CTA_TARGET == '#criar-conta'
+          assert entry._PREMIUM_CTA_TARGET == '/Assinar_RENOVA_IA'
           assert 'target="_self"' in runtime, 'CTAs públicos devem navegar na mesma aba'
+          assert '/Criar_Conta?plan=premium' in runtime, 'Links premium legados precisam continuar compatíveis'
           assert 'plan_param' in signup, 'Rota de cadastro precisa interpretar o plano solicitado'
           assert 'if plan_param == "premium"' in signup, 'Plano premium precisa de tratamento explícito'
           assert 'st.switch_page("pages/Assinar_RENOVA_IA.py")' in signup, 'Premium deve seguir para assinatura'
