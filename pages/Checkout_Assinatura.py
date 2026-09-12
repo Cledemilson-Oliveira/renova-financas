@@ -28,7 +28,7 @@ apply_renova_theme()
 if is_authenticated():
     with st.sidebar:
         brand_block()
-        st.page_link("pages/Assinar_RENOVA_IA.py", label="Voltar à oferta", icon="←", use_container_width=True)
+        st.page_link("pages/Assinar_RENOVA_IA.py", label="← Voltar à oferta", use_container_width=True)
 else:
     st.markdown(
         """
