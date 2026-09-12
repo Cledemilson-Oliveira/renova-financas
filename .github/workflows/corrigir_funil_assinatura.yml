@@ -1,0 +1,64 @@
+name: RENOVA Finanças Funil Assinatura
+
+on:
+  push:
+    paths:
+      - 'scripts/corrigir_funil_assinatura.py'
+      - '.github/workflows/corrigir_funil_assinatura.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Aplicar funil de assinatura
+        run: python scripts/corrigir_funil_assinatura.py
+      - name: Validar sintaxe
+        run: |
+          python -m py_compile app.py \
+            src/public_entry_runtime.py \
+            pages/Criar_Conta.py \
+            pages/Assinar_RENOVA_IA.py \
+            pages/Checkout_Assinatura.py
+      - name: Validar CTA público
+        run: |
+          grep -q '_FREE_CTA_TARGET = "#criar-conta"' src/public_entry_runtime.py
+          grep -q '_PREMIUM_CTA_TARGET = "/Assinar_RENOVA_IA"' src/public_entry_runtime.py
+          ! grep -q '_PREMIUM_CTA_TARGET = "/Criar_Conta?plan=premium"' src/public_entry_runtime.py
+      - name: Validar página de vendas
+        run: |
+          grep -q 'IR PARA O CHECKOUT SEGURO' pages/Assinar_RENOVA_IA.py
+          grep -q 'st.switch_page("pages/Checkout_Assinatura.py")' pages/Assinar_RENOVA_IA.py
+          ! grep -qi 'Criar conta grátis' pages/Assinar_RENOVA_IA.py
+          ! grep -qi 'Criar minha conta grátis' pages/Assinar_RENOVA_IA.py
+      - name: Validar checkout
+        run: |
+          grep -q 'Dados da assinatura' pages/Checkout_Assinatura.py
+          grep -q 'CONTINUAR PARA O PAGAMENTO SEGURO' pages/Checkout_Assinatura.py
+          grep -q 'ABRIR CHECKOUT SEGURO NO MERCADO PAGO' pages/Checkout_Assinatura.py
+          grep -q 'sign_up' pages/Checkout_Assinatura.py
+          grep -q 'sign_in' pages/Checkout_Assinatura.py
+          ! grep -qi 'Criar conta grátis' pages/Checkout_Assinatura.py
+      - name: Validar rota legada e fallback
+        run: |
+          grep -q 'st.switch_page("pages/Assinar_RENOVA_IA.py")' pages/Criar_Conta.py
+          grep -q 'st.switch_page("app.py")' pages/Criar_Conta.py
+          grep -q 'Regra de funil: assinatura sempre passa' app.py
+      - name: Publicar correções
+        run: |
+          if git diff --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+          git config user.name 'RENOVA Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app.py src/public_entry_runtime.py pages/Criar_Conta.py pages/Assinar_RENOVA_IA.py pages/Checkout_Assinatura.py
+          git commit -m 'fix(assinatura): direcionar CTAs para vendas e checkout'
+          git push
