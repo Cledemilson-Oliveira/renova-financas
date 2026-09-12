@@ -1,0 +1,46 @@
+name: RENOVA Finanças Corrigir Mobile
+
+on:
+  push:
+    paths:
+      - 'scripts/corrigir_mobile_contraste_menu.py'
+      - '.github/workflows/corrigir_mobile_contraste_menu.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Aplicar correções mobile
+        run: python scripts/corrigir_mobile_contraste_menu.py
+      - name: Validar sintaxe
+        run: python -m py_compile app.py src/theme.py
+      - name: Validar menu mobile nativo
+        run: |
+          grep -q 'renova_fin_mobile_nav' app.py
+          grep -q '☰  MÓDULOS' app.py
+          grep -q 'Escolha o módulo que deseja abrir' app.py
+          grep -q 'O menu mobile é renderizado nativamente' src/theme.py
+      - name: Validar contraste mobile
+        run: |
+          grep -q 'MOBILE V3 • contraste leve' src/theme.py
+          grep -q '#123A5D' src/theme.py
+          grep -q 'box-shadow:' src/theme.py
+      - name: Publicar correções
+        run: |
+          if git diff --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+          git config user.name 'RENOVA Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app.py src/theme.py
+          git commit -m 'fix(mobile): melhorar contraste e tornar menu de módulos visível'
+          git push
