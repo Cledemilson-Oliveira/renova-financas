@@ -54,7 +54,7 @@ st.set_page_config(
 )
 apply_renova_theme()
 REAL_MODE = is_configured()
-APP_BUILD = "2026.09.12.7"
+APP_BUILD = "2026.09.12.8"
 
 
 def hero(title: str, subtitle: str) -> None:
@@ -239,7 +239,7 @@ def active_user_id() -> str:
 
 
 _FINANCIAL_DATA_KEYS = ("transactions", "accounts", "cards", "budgets", "categories", "goals")
-_FINANCIAL_DATA_TTL_SECONDS = 15.0
+_FINANCIAL_DATA_TTL_SECONDS = 60.0
 _ACCESS_CACHE_TTL_SECONDS = 45.0
 _AI_ACCESS_CACHE_TTL_SECONDS = 20.0
 
